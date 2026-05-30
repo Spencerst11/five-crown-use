@@ -113,6 +113,7 @@
             <div class="avatar-opt" data-animal="🐢" onclick="selectAnimal(this,'🐢')">🐢<span>Turtle</span></div>
             <div class="avatar-opt" data-animal="🦕" onclick="selectAnimal(this,'🦕')">🦕<span>Dinosaur</span></div>
             <div class="avatar-opt" data-animal="🐩" onclick="selectAnimal(this,'🐩')">🐩<span>Poodle</span></div>
+            <div class="avatar-opt" data-animal="🪼" onclick="selectAnimal(this,'🪼')">🪼<span>Jellyfish</span></div>
             <div class="avatar-opt selected" data-animal="none" onclick="selectAnimal(this,'none')">🚫<span>None</span></div>
           </div>
           <div class="avatar-section-label">Color</div>
@@ -168,6 +169,7 @@
             <div class="avatar-opt" data-animal="🐢" onclick="selectAnimalJoin(this,'🐢')">🐢<span>Turtle</span></div>
             <div class="avatar-opt" data-animal="🦕" onclick="selectAnimalJoin(this,'🦕')">🦕<span>Dinosaur</span></div>
             <div class="avatar-opt" data-animal="🐩" onclick="selectAnimalJoin(this,'🐩')">🐩<span>Poodle</span></div>
+            <div class="avatar-opt" data-animal="🪼" onclick="selectAnimalJoin(this,'🪼')">🪼<span>Jellyfish</span></div>
             <div class="avatar-opt selected" data-animal="none" onclick="selectAnimalJoin(this,'none')">🚫<span>None</span></div>
           </div>
           <div class="avatar-section-label">Color</div>
@@ -265,7 +267,21 @@
 
     <!-- Player Hand -->
     <div id="player-area">
-      <div id="player-info-bar">
+      <!-- You-zone: shows your avatar + name + glow on your turn -->
+      <div id="you-zone">
+        <div id="you-avatar-display" style="width:34px;height:34px;border-radius:50%;background:#d4a017;display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:2px solid rgba(255,255,255,.2);flex-shrink:0;"></div>
+        <div style="display:flex;flex-direction:column;gap:.05rem;flex:1">
+          <div id="you-name-display" style="font-family:var(--font-heading);color:var(--gold);font-size:.82rem;font-weight:600;">You</div>
+          <div id="you-score-display" style="font-size:.68rem;color:#8ab88a;">0 pts</div>
+        </div>
+        <span id="turn-indicator" class="turn-badge hidden">YOUR TURN</span>
+        <div id="action-buttons">
+          <button class="btn btn-success" id="btn-go-out" onclick="goOut()" style="display:none">GO OUT ✓</button>
+          <button class="btn btn-warning" id="btn-sort-hand" onclick="sortHand()">Sort</button>
+          <button class="btn btn-tiny" onclick="toggleScoreboard()">📊</button>
+        </div>
+      </div>
+      <div id="player-info-bar" style="display:none">
         <span id="player-name-display">You</span>
         <span id="turn-indicator" class="turn-badge hidden">YOUR TURN</span>
         <div id="action-buttons">
