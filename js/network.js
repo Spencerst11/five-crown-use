@@ -1,5 +1,6 @@
 // ============================================================
-// network.js — P2P Networking via PeerJS (v2)
+// network.js — P2P Networking via PeerJS (v3)
+// Changes: goOut now sends discardCardId + meldGroups
 // ============================================================
 
 const Network = (() => {
@@ -26,7 +27,6 @@ const Network = (() => {
     return code;
   }
 
-  // ── HOST: CREATE ROOM ────────────────────────────────────
   function createRoom(playerName, maxPlayers, avatar, callbacks) {
     isHost = true;
     localPlayerName = playerName;
@@ -62,14 +62,10 @@ const Network = (() => {
       });
     });
 
-    peer.on('error', (err) => {
-      if (onError) onError('Connection error: ' + err.type);
-    });
-
+    peer.on('error', (err) => { if (onError) onError('Connection error: ' + err.type); });
     return roomCode;
   }
 
-  // ── GUEST: JOIN ROOM ─────────────────────────────────────
   function joinRoom(playerName, code, avatar, callbacks) {
     isHost = false;
     localPlayerName = playerName;
@@ -109,7 +105,6 @@ const Network = (() => {
     });
   }
 
-  // ── HOST: RECEIVE FROM GUEST ─────────────────────────────
   function _handleHostReceive(fromPeerId, data) {
     const gs = Game.get();
 
@@ -126,10 +121,10 @@ const Network = (() => {
     if (!gs) return;
 
     let result = null;
-    if (data.type === 'draw-deck')    result = Game.drawFromDeck(gs, data.playerId);
+    if (data.type === 'draw-deck')         result = Game.drawFromDeck(gs, data.playerId);
     else if (data.type === 'draw-discard') result = Game.drawFromDiscard(gs, data.playerId);
     else if (data.type === 'discard')      result = Game.discardCard(gs, data.playerId, data.cardId);
-    else if (data.type === 'go-out')       result = Game.goOut(gs, data.playerId);
+    else if (data.type === 'go-out')       result = Game.goOut(gs, data.playerId, data.discardCardId, data.meldGroups);
     else if (data.type === 'next-round')   result = Game.nextRound(gs);
 
     if (result && result.ok) {
@@ -141,43 +136,29 @@ const Network = (() => {
     }
   }
 
-  // ── GUEST: RECEIVE FROM HOST ──────────────────────────────
   function _handleGuestReceive(data) {
     if (data.type === 'join-ack') { localPlayerId = data.playerId; return; }
-    if (data.type === 'lobby-update') {
-      _lobbyPlayers = data.players;
-      if (onLobbyUpdate) onLobbyUpdate([...data.players]);
-      return;
-    }
-    if (data.type === 'game-start') {
-      if (onStateUpdate) onStateUpdate(data.publicState, { action: 'round-start' });
-      return;
-    }
-    if (data.type === 'state-update') {
-      if (onStateUpdate) onStateUpdate(data.publicState, data.result);
-      return;
-    }
-    if (data.type === 'message') { if (onMessage) onMessage(data.msg); return; }
-    if (data.type === 'error')   { if (onError)   onError(data.msg);   return; }
+    if (data.type === 'lobby-update') { _lobbyPlayers = data.players; if (onLobbyUpdate) onLobbyUpdate([...data.players]); return; }
+    if (data.type === 'game-start')   { if (onStateUpdate) onStateUpdate(data.publicState, { action: 'round-start' }); return; }
+    if (data.type === 'state-update') { if (onStateUpdate) onStateUpdate(data.publicState, data.result); return; }
+    if (data.type === 'message')      { if (onMessage) onMessage(data.msg); return; }
+    if (data.type === 'error')        { if (onError) onError(data.msg); return; }
   }
 
-  // ── HOST: START GAME ─────────────────────────────────────
   function hostStartGame() {
     if (!isHost) return;
-    const playerIds    = _lobbyPlayers.map(p => p.id);
-    const playerNames  = _lobbyPlayers.map(p => p.name);
-    const playerAvatars= _lobbyPlayers.map(p => p.avatar);
+    const playerIds     = _lobbyPlayers.map(p => p.id);
+    const playerNames   = _lobbyPlayers.map(p => p.name);
+    const playerAvatars = _lobbyPlayers.map(p => p.avatar);
 
     const gs = Game.fresh(playerIds, playerNames, localPlayerId, playerAvatars);
     Game.set(gs);
     Game.dealRound(gs);
-
     _broadcastState(gs, { action: 'round-start' }, true);
     const pub = Game.getPublicState(gs, localPlayerId);
     if (onStateUpdate) onStateUpdate(pub, { action: 'round-start' });
   }
 
-  // ── BROADCAST ────────────────────────────────────────────
   function _broadcastState(gs, result, isStart = false) {
     for (const [peerId, conn] of Object.entries(connections)) {
       const guestPlayer = _lobbyPlayers.find(p => p.peerId === peerId);
@@ -191,7 +172,6 @@ const Network = (() => {
     for (const conn of Object.values(connections)) conn.send(msg);
   }
 
-  // ── GUEST: SEND ACTION ────────────────────────────────────
   function sendAction(actionData) {
     if (isHost) {
       const gs = Game.get();
@@ -200,7 +180,7 @@ const Network = (() => {
       if (actionData.type === 'draw-deck')    result = Game.drawFromDeck(gs, localPlayerId);
       if (actionData.type === 'draw-discard') result = Game.drawFromDiscard(gs, localPlayerId);
       if (actionData.type === 'discard')      result = Game.discardCard(gs, localPlayerId, actionData.cardId);
-      if (actionData.type === 'go-out')       result = Game.goOut(gs, localPlayerId);
+      if (actionData.type === 'go-out')       result = Game.goOut(gs, localPlayerId, actionData.discardCardId, actionData.meldGroups);
       if (actionData.type === 'next-round')   result = Game.nextRound(gs);
       if (result && result.ok) {
         _broadcastState(gs, result);
@@ -228,9 +208,7 @@ const Network = (() => {
 
   function destroy() {
     if (peer) { peer.destroy(); peer = null; }
-    connections = {};
-    hostConn = null;
-    _lobbyPlayers = [];
+    connections = {}; hostConn = null; _lobbyPlayers = [];
   }
 
   function getLobbyPlayers()    { return [..._lobbyPlayers]; }
