@@ -239,8 +239,19 @@
           <button class="btn btn-warning" id="btn-sort-hand" onclick="sortHand()">Sort</button>
         </div>
       </div>
+
+      <!-- Go-Out Builder Controls (shown only in go-out mode) -->
+      <div id="goout-builder-controls" style="display:none">
+        <div id="goout-status-bar" class="goout-status-bar status-warn">Tap cards to assign them to groups</div>
+        <div class="goout-controls">
+          <button class="btn btn-small btn-primary" onclick="addGoOutGroup()">+ Add Group</button>
+          <button class="btn btn-small btn-success" onclick="submitGoOut()">SUBMIT GO OUT →</button>
+          <button class="btn btn-small btn-ghost" onclick="cancelGoOut()">Cancel</button>
+        </div>
+      </div>
+
       <div id="player-hand" class="hand-container"></div>
-      <div class="hand-hint">Drag cards to rearrange · Tap to select · Tap discard pile to discard</div>
+      <div class="hand-hint">Drag to reorder · Tap to select · Tap discard pile to discard</div>
     </div>
 
   </div>
