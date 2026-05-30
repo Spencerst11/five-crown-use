@@ -40,25 +40,21 @@
     <div class="menu-content">
       <h2 class="screen-title">Main Menu</h2>
       <div class="menu-cards">
-
         <div class="menu-card" onclick="showScreen('screen-create-room')">
           <div class="menu-card-icon">🏠</div>
           <h3>Create Room</h3>
           <p>Start a new game and invite your family with a room code</p>
         </div>
-
         <div class="menu-card" onclick="showScreen('screen-join-room')">
           <div class="menu-card-icon">🚪</div>
           <h3>Join Room</h3>
           <p>Enter a room code to join a game already in progress</p>
         </div>
-
         <div class="menu-card" onclick="showScreen('screen-rules')">
           <div class="menu-card-icon">📖</div>
           <h3>How to Play</h3>
           <p>Learn the rules of Five Crowns</p>
         </div>
-
       </div>
       <button class="btn btn-ghost" onclick="showScreen('screen-splash')">← Back</button>
     </div>
@@ -71,6 +67,34 @@
       <div class="form-box">
         <label>Your Name</label>
         <input type="text" id="create-name" placeholder="Enter your name" maxlength="16" />
+
+        <!-- AVATAR PICKER -->
+        <label>Choose Your Avatar <span class="optional">(optional)</span></label>
+        <div class="avatar-picker" id="create-avatar-picker">
+          <div class="avatar-section-label">Animal</div>
+          <div class="avatar-animals">
+            <div class="avatar-opt" data-animal="🐧" onclick="selectAnimal(this,'🐧')">🐧<span>Penguin</span></div>
+            <div class="avatar-opt" data-animal="🐉" onclick="selectAnimal(this,'🐉')">🐉<span>Dragon</span></div>
+            <div class="avatar-opt" data-animal="🦫" onclick="selectAnimal(this,'🦫')">🦫<span>Capybara</span></div>
+            <div class="avatar-opt" data-animal="🐢" onclick="selectAnimal(this,'🐢')">🐢<span>Turtle</span></div>
+            <div class="avatar-opt" data-animal="🦕" onclick="selectAnimal(this,'🦕')">🦕<span>Dinosaur</span></div>
+            <div class="avatar-opt" data-animal="🐩" onclick="selectAnimal(this,'🐩')">🐩<span>Poodle</span></div>
+            <div class="avatar-opt selected" data-animal="none" onclick="selectAnimal(this,'none')">🚫<span>None</span></div>
+          </div>
+          <div class="avatar-section-label">Color</div>
+          <div class="avatar-colors">
+            <div class="color-opt" data-color="red"        onclick="selectColor(this,'red')"        style="background:#e53e3e" title="Red"></div>
+            <div class="color-opt" data-color="pink"       onclick="selectColor(this,'pink')"       style="background:#d53f8c" title="Berry Pink"></div>
+            <div class="color-opt" data-color="periwinkle" onclick="selectColor(this,'periwinkle')" style="background:#7b8cde" title="Periwinkle"></div>
+            <div class="color-opt" data-color="sage"       onclick="selectColor(this,'sage')"       style="background:#68a57a" title="Sage"></div>
+            <div class="color-opt" data-color="orange"     onclick="selectColor(this,'orange')"     style="background:#ed8936" title="Orange"></div>
+            <div class="color-opt selected" data-color="gold" onclick="selectColor(this,'gold')"    style="background:#d4a017" title="Gold"></div>
+          </div>
+          <div class="avatar-preview-row">
+            <div class="avatar-preview" id="create-avatar-preview" style="background:#d4a017">🚫</div>
+            <span id="create-avatar-label" class="avatar-preview-label">No Avatar · Gold</span>
+          </div>
+        </div>
 
         <label>Room Name <span class="optional">(optional)</span></label>
         <input type="text" id="create-room-name" placeholder="Family Game Night" maxlength="24" />
@@ -99,6 +123,34 @@
         <label>Your Name</label>
         <input type="text" id="join-name" placeholder="Enter your name" maxlength="16" />
 
+        <!-- AVATAR PICKER (join) -->
+        <label>Choose Your Avatar <span class="optional">(optional)</span></label>
+        <div class="avatar-picker" id="join-avatar-picker">
+          <div class="avatar-section-label">Animal</div>
+          <div class="avatar-animals">
+            <div class="avatar-opt" data-animal="🐧" onclick="selectAnimalJoin(this,'🐧')">🐧<span>Penguin</span></div>
+            <div class="avatar-opt" data-animal="🐉" onclick="selectAnimalJoin(this,'🐉')">🐉<span>Dragon</span></div>
+            <div class="avatar-opt" data-animal="🦫" onclick="selectAnimalJoin(this,'🦫')">🦫<span>Capybara</span></div>
+            <div class="avatar-opt" data-animal="🐢" onclick="selectAnimalJoin(this,'🐢')">🐢<span>Turtle</span></div>
+            <div class="avatar-opt" data-animal="🦕" onclick="selectAnimalJoin(this,'🦕')">🦕<span>Dinosaur</span></div>
+            <div class="avatar-opt" data-animal="🐩" onclick="selectAnimalJoin(this,'🐩')">🐩<span>Poodle</span></div>
+            <div class="avatar-opt selected" data-animal="none" onclick="selectAnimalJoin(this,'none')">🚫<span>None</span></div>
+          </div>
+          <div class="avatar-section-label">Color</div>
+          <div class="avatar-colors">
+            <div class="color-opt" data-color="red"        onclick="selectColorJoin(this,'red')"        style="background:#e53e3e" title="Red"></div>
+            <div class="color-opt" data-color="pink"       onclick="selectColorJoin(this,'pink')"       style="background:#d53f8c" title="Berry Pink"></div>
+            <div class="color-opt" data-color="periwinkle" onclick="selectColorJoin(this,'periwinkle')" style="background:#7b8cde" title="Periwinkle"></div>
+            <div class="color-opt" data-color="sage"       onclick="selectColorJoin(this,'sage')"       style="background:#68a57a" title="Sage"></div>
+            <div class="color-opt" data-color="orange"     onclick="selectColorJoin(this,'orange')"     style="background:#ed8936" title="Orange"></div>
+            <div class="color-opt selected" data-color="gold" onclick="selectColorJoin(this,'gold')"    style="background:#d4a017" title="Gold"></div>
+          </div>
+          <div class="avatar-preview-row">
+            <div class="avatar-preview" id="join-avatar-preview" style="background:#d4a017">🚫</div>
+            <span id="join-avatar-label" class="avatar-preview-label">No Avatar · Gold</span>
+          </div>
+        </div>
+
         <label>Room Code</label>
         <input type="text" id="join-code" placeholder="e.g. ABCD" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-size:1.4rem;text-align:center;" />
 
@@ -117,9 +169,7 @@
         <div class="room-code" id="lobby-room-code">----</div>
         <button class="btn btn-small" onclick="copyRoomCode()">📋 Copy Code</button>
       </div>
-      <div class="lobby-players" id="lobby-players-list">
-        <!-- players injected here -->
-      </div>
+      <div class="lobby-players" id="lobby-players-list"></div>
       <div class="lobby-status" id="lobby-status">Waiting for players…</div>
       <div id="lobby-host-controls" style="display:none">
         <button class="btn btn-primary" id="start-game-btn" onclick="hostStartGame()" disabled>START GAME</button>
@@ -134,7 +184,6 @@
     <div id="game-header">
       <div class="game-info-left">
         <span id="hdr-round">Round 1 / 11</span>
-        <span id="hdr-wild" class="wild-badge">Wild: 3s</span>
       </div>
       <div class="game-title-small">FIVE CROWNS</div>
       <div class="game-info-right">
@@ -146,11 +195,22 @@
     <!-- Opponents Area -->
     <div id="opponents-area"></div>
 
+    <!-- Gone-Out Player's Cards Display -->
+    <div id="gone-out-display" style="display:none">
+      <div class="gone-out-label" id="gone-out-label">Player went out!</div>
+      <div class="gone-out-melds" id="gone-out-melds"></div>
+    </div>
+
+    <!-- Deal Animation Overlay -->
+    <div id="deal-overlay" class="deal-overlay hidden"></div>
+
     <!-- Center Table -->
     <div id="table-center">
       <div id="draw-pile" class="pile" onclick="drawFromDeck()">
         <div class="pile-cards">
-          <div class="card-back">👑</div>
+          <div class="card-back stack-3">👑</div>
+          <div class="card-back stack-2">👑</div>
+          <div class="card-back stack-1">👑</div>
         </div>
         <div class="pile-label">Draw</div>
         <div class="pile-count" id="draw-count">?</div>
@@ -176,10 +236,11 @@
         <span id="turn-indicator" class="turn-badge hidden">YOUR TURN</span>
         <div id="action-buttons">
           <button class="btn btn-success" id="btn-go-out" onclick="goOut()" style="display:none">GO OUT ✓</button>
-          <button class="btn btn-warning" id="btn-sort-hand" onclick="sortHand()">Sort Hand</button>
+          <button class="btn btn-warning" id="btn-sort-hand" onclick="sortHand()">Sort</button>
         </div>
       </div>
       <div id="player-hand" class="hand-container"></div>
+      <div class="hand-hint">Drag cards to rearrange · Tap to select · Tap discard pile to discard</div>
     </div>
 
   </div>
@@ -220,7 +281,7 @@
         </div>
         <div class="rule-section">
           <h3>🔄 Rounds & Wild Cards</h3>
-          <p>11 rounds total. Round 1 starts with 3 cards each, and each round you get one more card. <strong>The wild card rotates every round</strong> — in Round 1, 3s are wild; Round 2, 4s are wild… up to Kings in Round 11. Jokers are always wild.</p>
+          <p>11 rounds total. Round 1 starts with 3 cards each, and each round you get one more card. The wild card rotates every round — in Round 1, 3s are wild; Round 2, 4s are wild… up to Kings in Round 11. Jokers are always wild.</p>
         </div>
         <div class="rule-section">
           <h3>📚 Books & Runs</h3>
@@ -231,20 +292,16 @@
         <div class="rule-section">
           <h3>▶️ Your Turn</h3>
           <p>1. Draw the top card from the <strong>draw pile</strong> or take the <strong>top discard</strong>.<br/>
-          2. Rearrange your hand to form books/runs.<br/>
-          3. Discard one card to end your turn.</p>
+          2. Rearrange your hand by dragging cards.<br/>
+          3. Select a card then tap the discard pile to end your turn.</p>
         </div>
         <div class="rule-section">
           <h3>🚪 Going Out</h3>
-          <p>When your entire hand can form books/runs (with one card left to discard), click <strong>GO OUT</strong>. All other players get <strong>one final turn</strong>, then everyone scores their leftover cards.</p>
+          <p>When your entire hand can form books/runs (with one card left to discard), click <strong>GO OUT</strong>. Your melds are shown on the table so everyone can see. All other players get <strong>one final turn</strong>.</p>
         </div>
         <div class="rule-section">
           <h3>💯 Scoring</h3>
-          <p>Cards left in hand count against you: <strong>Number cards = face value</strong>, Jacks = 11, Queens = 12, Kings = 13, Wild cards (current round) = 20, Jokers = 50. <strong>Lowest total after 11 rounds wins!</strong></p>
-        </div>
-        <div class="rule-section">
-          <h3>🃏 Card Highlighting in This Game</h3>
-          <p><span class="legend-wild">Wild cards glow gold</span>. <span class="legend-book">Possible books pulse green</span>. Click cards to select them, then click the discard pile to discard. Use "GO OUT" when your hand is fully arranged.</p>
+          <p>Cards left in hand count against you: <strong>Number cards = face value</strong>, Jacks = 11, Queens = 12, Kings = 13, Jokers = 50, Wild cards for that round = 20. <strong>Lowest total after 11 rounds wins!</strong></p>
         </div>
       </div>
       <button class="btn btn-primary" onclick="showScreen('screen-main-menu')">← Back to Menu</button>
