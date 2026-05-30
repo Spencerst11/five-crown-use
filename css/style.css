@@ -52,7 +52,7 @@ a, button, input, select, textarea,
 }
 
 /* ── SCREENS ── */
-.screen { display: none; width: 100%; min-height: 100vh; position: relative; }
+.screen { display: none; width: 100%; min-height: 100vh; min-height: 100dvh; position: relative; }
 .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 #screen-game.active { display: flex; flex-direction: column; justify-content: flex-start; padding: 0; height: 100dvh; overflow: hidden; }
 #screen-rules.active, #screen-round-results.active, #screen-game-over.active { display: flex; }
