@@ -1,10 +1,9 @@
 // ============================================================
-// main.js — App Controller for Five Crowns (v4)
-// NEW: Reconnection support
-//   - On disconnect: auto-shows rejoin banner with saved session
-//   - Rejoin button appears on splash/menu if session exists
-//   - Auto-retries reconnect up to 5 times with backoff
-//   - Leaving voluntarily clears the saved session
+// main.js — Five Crowns App Controller (v5)
+// Changes:
+//   - Go-out: player manually groups cards into melds + picks discard
+//   - Clear error feedback on invalid go-out attempts
+//   - Final turns: draw then discard, all remaining cards score
 // ============================================================
 
 function showScreen(id) {
@@ -17,18 +16,13 @@ function showScreen(id) {
 // ── LOCAL STATE ───────────────────────────────────────────────
 let _selectedCards      = new Set();
 let _currentPublicState = null;
-let _pendingGoOut       = false;
 let _localHand          = [];
 let _dealAnimating      = false;
 
 // Go-out builder state
-let _goOutMeldGroups    = [];
-let _goOutDiscardId     = null;
-let _goOutMode          = false;
-
-// Reconnect state
-let _rejoinAttempts     = 0;
-let _rejoinTimer        = null;
+let _goOutMode       = false;
+let _goOutMeldGroups = [];   // array of Set<cardId>
+let _goOutDiscardId  = null; // cardId chosen as discard
 
 // ── AVATAR SELECTION ─────────────────────────────────────────
 let _createAvatar = { animal: 'none', color: 'gold' };
@@ -86,14 +80,7 @@ function createRoom() {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: (msg) => UI.showToast(msg),
-    onError: (err) => {
-      if (err === 'disconnected') {
-        _handleSelfDisconnect();
-      } else {
-        UI.showToast('⚠️ ' + err, 4000);
-        console.error(err);
-      }
-    },
+    onError: (err) => { UI.showToast('⚠️ ' + err, 4000); console.error(err); },
   });
   document.getElementById('lobby-room-code').textContent = code;
   document.getElementById('lobby-host-controls').style.display = 'block';
@@ -111,14 +98,7 @@ function joinRoom() {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: (msg) => UI.showToast(msg),
-    onError: (err) => {
-      if (err === 'disconnected') {
-        _handleSelfDisconnect();
-      } else {
-        UI.showToast('⚠️ ' + err, 4000);
-        console.error(err);
-      }
-    },
+    onError: (err) => { UI.showToast('⚠️ ' + err, 4000); console.error(err); },
   });
 }
 
@@ -132,16 +112,11 @@ function copyRoomCode() {
 function hostStartGame() { Network.hostStartGame(); }
 
 function leaveRoom() {
-  // Voluntary leave — clear saved session so rejoin banner doesn't show
-  Network.clearSession();
   Network.destroy();
   _selectedCards.clear();
   _currentPublicState = null;
   _localHand = [];
   _exitGoOutMode();
-  clearTimeout(_rejoinTimer);
-  _rejoinAttempts = 0;
-  _hideBanner();
   showScreen('screen-main-menu');
 }
 
@@ -150,163 +125,28 @@ function handleLobbyUpdate(players) {
   UI.renderLobby(players, Network.getLocalPlayerId(), Network.getExpectedPlayers());
 }
 
-// ── RECONNECTION SYSTEM ───────────────────────────────────────
-
-// Called when THIS player's connection to host drops
-function _handleSelfDisconnect() {
-  const session = Network.getSavedSession();
-  if (!session) {
-    // Nothing to recover — go back to menu
-    UI.showToast('Disconnected from game.', 3000);
-    showScreen('screen-main-menu');
-    return;
-  }
-
-  // Show the reconnect screen
-  showScreen('screen-reconnect');
-  document.getElementById('rc-room-code').textContent = session.roomCode;
-  document.getElementById('rc-player-name').textContent = session.name;
-  document.getElementById('rc-status').textContent = 'Connection lost. Attempting to reconnect…';
-  document.getElementById('rc-attempts').textContent = '';
-
-  // Start auto-reconnect
-  _rejoinAttempts = 0;
-  _scheduleAutoRejoin();
-}
-
-function _scheduleAutoRejoin() {
-  const delay = _rejoinAttempts === 0 ? 1500 : Math.min(_rejoinAttempts * 3000, 12000);
-  const rc = document.getElementById('rc-attempts');
-  if (rc) rc.textContent = `Attempt ${_rejoinAttempts + 1} of 5…`;
-
-  _rejoinTimer = setTimeout(() => {
-    Network.destroy();
-    _attemptRejoin();
-  }, delay);
-}
-
-function _attemptRejoin() {
-  const session = Network.getSavedSession();
-  if (!session) {
-    _rejoinFailed('No saved session found.');
-    return;
-  }
-
-  const statusEl = document.getElementById('rc-status');
-  if (statusEl) statusEl.textContent = `Connecting to room ${session.roomCode}…`;
-
-  Network.rejoinRoom({
-    onStateUpdate: (pub, result) => {
-      // Reconnect succeeded!
-      _rejoinAttempts = 0;
-      clearTimeout(_rejoinTimer);
-      handleStateUpdate(pub, result);
-      UI.showToast('✅ Reconnected! Welcome back.', 3000);
-    },
-    onLobbyUpdate: handleLobbyUpdate,
-    onMessage: (msg) => UI.showToast(msg),
-    onError: (err) => {
-      if (err === 'disconnected') {
-        _rejoinAttempts++;
-        if (_rejoinAttempts >= 5) {
-          _rejoinFailed('Could not reconnect after 5 attempts. The host may have closed the game.');
-        } else {
-          const statusEl2 = document.getElementById('rc-status');
-          if (statusEl2) statusEl2.textContent = `Attempt ${_rejoinAttempts} failed. Retrying…`;
-          _scheduleAutoRejoin();
-        }
-      } else {
-        _rejoinFailed(err);
-      }
-    },
-  });
-}
-
-function _rejoinFailed(reason) {
-  clearTimeout(_rejoinTimer);
-  _rejoinAttempts = 0;
-  const statusEl = document.getElementById('rc-status');
-  if (statusEl) {
-    statusEl.textContent = reason;
-    statusEl.style.color = '#f87171';
-  }
-  const attemptsEl = document.getElementById('rc-attempts');
-  if (attemptsEl) attemptsEl.textContent = '';
-}
-
-// Manual rejoin from reconnect screen
-function manualRejoin() {
-  clearTimeout(_rejoinTimer);
-  _rejoinAttempts = 0;
-  const statusEl = document.getElementById('rc-status');
-  if (statusEl) {
-    statusEl.textContent = 'Reconnecting…';
-    statusEl.style.color = '';
-  }
-  Network.destroy();
-  _attemptRejoin();
-}
-
-// Give up and go back to menu from reconnect screen
-function giveUpRejoin() {
-  clearTimeout(_rejoinTimer);
-  _rejoinAttempts = 0;
-  Network.clearSession();
-  Network.destroy();
-  _hideBanner();
-  showScreen('screen-main-menu');
-}
-
-// Rejoin button on the splash/menu (if session exists from a page refresh)
-function rejoinFromMenu() {
-  const session = Network.getSavedSession();
-  if (!session) { UI.showToast('No active session found.', 3000); return; }
-  showScreen('screen-reconnect');
-  document.getElementById('rc-room-code').textContent = session.roomCode;
-  document.getElementById('rc-player-name').textContent = session.name;
-  document.getElementById('rc-status').textContent = 'Reconnecting to your game…';
-  document.getElementById('rc-attempts').textContent = '';
-  _rejoinAttempts = 0;
-  _scheduleAutoRejoin();
-}
-
-// Show/hide the rejoin banner on the splash screen
-function _checkForSavedSession() {
-  const session = Network.getSavedSession();
-  const banner = document.getElementById('rejoin-banner');
-  if (!banner) return;
-  if (session) {
-    document.getElementById('rejoin-room-label').textContent = `Room ${session.roomCode} · ${session.name}`;
-    banner.style.display = 'flex';
-  } else {
-    banner.style.display = 'none';
-  }
-}
-
-function _hideBanner() {
-  const banner = document.getElementById('rejoin-banner');
-  if (banner) banner.style.display = 'none';
-}
-
 // ── GAME STATE HANDLER ────────────────────────────────────────
 function handleStateUpdate(publicState, result) {
   _currentPublicState = publicState;
   const localId = Network.getLocalPlayerId();
   const { action } = result || {};
 
+  // Sync local hand
   const localPlayer = publicState.players.find(p => p.id === localId);
   if (localPlayer?.hand) {
-    if (_localHand.length === localPlayer.hand.length &&
-        _localHand.every(c => localPlayer.hand.some(h => h.id === c.id))) {
-      // preserve local drag order
-    } else {
+    // Keep local drag order if same cards, otherwise reset
+    const sameCards = _localHand.length === localPlayer.hand.length &&
+      _localHand.every(c => localPlayer.hand.some(h => h.id === c.id));
+    if (!sameCards) {
       _localHand = [...localPlayer.hand];
+      // If in go-out mode and hand changed (e.g. a draw happened), exit go-out mode
+      if (_goOutMode) _exitGoOutMode();
     }
   }
 
+  // ── GAME OVER ──
   if (publicState.phase === 'game-over') {
     _exitGoOutMode();
-    Network.clearSession(); // game over — no need to rejoin
     _renderGameTable(publicState);
     setTimeout(() => {
       const results = publicState.players.map(p => ({
@@ -320,6 +160,7 @@ function handleStateUpdate(publicState, result) {
     return;
   }
 
+  // ── ROUND END ──
   if (publicState.phase === 'round-end') {
     _exitGoOutMode();
     _renderGameTable(publicState);
@@ -335,13 +176,14 @@ function handleStateUpdate(publicState, result) {
     return;
   }
 
-  // Show game table for active game phases
+  // Show game table for active phases
   const gameScreen = document.getElementById('screen-game');
   if (!gameScreen.classList.contains('active') &&
       ['draw','discard','going-out'].includes(publicState.phase)) {
     showScreen('screen-game');
   }
 
+  // Deal animation on round start
   if (action === 'round-start' && localPlayer?.hand) {
     _exitGoOutMode();
     _selectedCards.clear();
@@ -355,39 +197,28 @@ function handleStateUpdate(publicState, result) {
     return;
   }
 
-  // Handle rejoin — drop straight into the game
-  if (action === 'rejoin') {
-    _exitGoOutMode();
-    _selectedCards.clear();
-    showScreen('screen-game');
-    _renderGameTable(publicState);
-    return;
-  }
-
+  // Draw animations
   if (action === 'draw-deck' || action === 'draw-discard') {
     UI.animateDraw(action === 'draw-discard');
   }
 
-  if ((action === 'draw-deck' || action === 'draw-discard') && _goOutMode) {
-    _exitGoOutMode();
-  }
-
   _renderGameTable(publicState);
 
+  // ── TOASTS ──
   if (action === 'going-out') {
     const goingOutName = _getPlayerName(publicState, publicState.goingOutPlayerId);
     const isMe = publicState.goingOutPlayerId === localId;
     UI.showToast(
       isMe
-        ? 'You went out! Everyone gets one more turn.'
-        : `${goingOutName} went out! Draw then discard on your final turn.`,
-      4500
+        ? 'You went out! Everyone gets one more turn — draw then discard.'
+        : `${goingOutName} went out! See their melds above. Draw one card, then discard one on your final turn.`,
+      5000
     );
   } else if (action === 'next-turn') {
     const turnPlayer = publicState.players[publicState.turnIdx];
     if (turnPlayer?.id === localId) {
       if (publicState.phase === 'going-out') {
-        UI.showToast('Your final turn! Draw a card, then discard one.', 3000);
+        UI.showToast('Your final turn! Draw one card, then discard one.', 3000);
       } else {
         UI.showToast('Your turn!', 1500);
       }
@@ -415,40 +246,45 @@ function _renderGameTable(s) {
   document.getElementById('player-name-display').textContent = Network.getLocalPlayerName();
   UI.updateTurnIndicator(isMyTurn, s.phase, s.drawnThisTurn);
 
+  // Render hand: go-out builder mode OR normal hand
   if (_goOutMode) {
-    UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
-      handleGoOutCardClick, handleCardReorder);
+    UI.renderGoOutBuilder(
+      _localHand, s.round,
+      _goOutMeldGroups, _goOutDiscardId,
+      handleGoOutCardClick, handleCardReorder
+    );
+    UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
   } else if (_localHand.length > 0) {
     UI.renderHand(_localHand, s.round, _selectedCards, handleCardClick, handleCardReorder);
   } else if (localPlayer?.hand) {
     UI.renderHand(localPlayer.hand, s.round, _selectedCards, handleCardClick, handleCardReorder);
   }
 
+  // Action log
   if (currentTurnPlayer) {
     const isMe = currentTurnPlayer.id === localId;
     const name = isMe ? 'You' : currentTurnPlayer.name;
     let msg = '';
-
-    // Show disconnected indicator for that player's turn
-    const isDisconnected = currentTurnPlayer.disconnected;
     if (s.phase === 'draw') {
-      msg = isDisconnected
-        ? `⚠️ ${name} is disconnected — their turn will be skipped shortly.`
-        : `${name} ${isMe ? 'need to' : 'needs to'} draw a card.`;
+      msg = `${name} ${isMe ? 'need to' : 'needs to'} draw a card.`;
     } else if (s.phase === 'discard') {
-      msg = `${name} ${isMe ? 'need to' : 'needs to'} discard.`;
+      msg = `${name} ${isMe ? 'need to' : 'needs to'} discard a card.`;
     } else if (s.phase === 'going-out') {
       if (!s.drawnThisTurn) {
-        msg = `${name} ${isMe ? 'need to' : 'needs to'} draw one final card.`;
+        msg = isMe
+          ? 'Your final turn — draw one card from the deck or discard pile.'
+          : `${name} needs to draw their final card.`;
       } else {
-        msg = `${name} ${isMe ? 'need to' : 'needs to'} discard one final card.`;
+        msg = isMe
+          ? 'Now discard one card — your remaining cards will score as points.'
+          : `${name} needs to discard their final card.`;
       }
     }
     UI.logAction(msg);
   }
 }
 
-// ── CARD REORDER ─────────────────────────────────────────────
+// ── CARD DRAG REORDER ─────────────────────────────────────────
 function handleCardReorder(fromIdx, toIdx) {
   if (fromIdx === toIdx) return;
   if (fromIdx < 0 || toIdx < 0 || fromIdx >= _localHand.length || toIdx >= _localHand.length) return;
@@ -457,14 +293,14 @@ function handleCardReorder(fromIdx, toIdx) {
   const s = _currentPublicState;
   if (!s) return;
   if (_goOutMode) {
-    UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
-      handleGoOutCardClick, handleCardReorder);
+    UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId, handleGoOutCardClick, handleCardReorder);
+    UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
   } else {
     UI.renderHand(_localHand, s.round, _selectedCards, handleCardClick, handleCardReorder);
   }
 }
 
-// ── NORMAL CARD CLICK ─────────────────────────────────────────
+// ── NORMAL CARD CLICK (select to discard) ────────────────────
 function handleCardClick(card, el) {
   const s = _currentPublicState;
   if (!s) return;
@@ -472,11 +308,13 @@ function handleCardClick(card, el) {
   const isMyTurn = s.players[s.turnIdx]?.id === localId;
 
   if (!isMyTurn) { UI.showToast("It's not your turn yet."); return; }
-  if (s.phase !== 'discard' && s.phase !== 'going-out') {
-    UI.showToast('Draw a card first!'); return;
-  }
+
+  // During going-out phase, player must draw first
   if (s.phase === 'going-out' && !s.drawnThisTurn) {
     UI.showToast('Draw a card first on your final turn!'); return;
+  }
+  if (s.phase !== 'discard' && s.phase !== 'going-out') {
+    UI.showToast('Draw a card first!'); return;
   }
 
   if (_selectedCards.has(card.id)) {
@@ -496,7 +334,8 @@ function drawFromDeck() {
   if (!s) return;
   const localId = Network.getLocalPlayerId();
   if (s.players[s.turnIdx]?.id !== localId) { UI.showToast("It's not your turn!"); return; }
-  const canDraw = s.phase === 'draw' || (s.phase === 'going-out' && !s.drawnThisTurn);
+  // Can draw in normal draw phase OR in going-out final turn before drawing
+  const canDraw = (s.phase === 'draw') || (s.phase === 'going-out' && !s.drawnThisTurn);
   if (!canDraw) { UI.showToast('You already drew a card.'); return; }
   Network.sendAction({ type: 'draw-deck' });
 }
@@ -507,14 +346,17 @@ function drawFromDiscard() {
   const localId = Network.getLocalPlayerId();
   if (s.players[s.turnIdx]?.id !== localId) { UI.showToast("It's not your turn!"); return; }
 
-  const canDraw = s.phase === 'draw' || (s.phase === 'going-out' && !s.drawnThisTurn);
+  // Can draw from discard in normal draw phase OR going-out final turn before drawing
+  const canDraw = (s.phase === 'draw') || (s.phase === 'going-out' && !s.drawnThisTurn);
   if (canDraw) {
     if (!s.discardTop) { UI.showToast('Discard pile is empty.'); return; }
     Network.sendAction({ type: 'draw-discard' });
     return;
   }
 
-  if (s.phase === 'discard' || (s.phase === 'going-out' && s.drawnThisTurn)) {
+  // Otherwise treat as a discard action (player taps pile to discard selected card)
+  const canDiscard = (s.phase === 'discard') || (s.phase === 'going-out' && s.drawnThisTurn);
+  if (canDiscard) {
     if (_selectedCards.size === 0) {
       UI.showToast('Select a card from your hand first, then tap the discard pile.');
       return;
@@ -525,130 +367,143 @@ function drawFromDiscard() {
   }
 }
 
-// ── GO OUT — MANUAL BUILDER ───────────────────────────────────
+// ── GO OUT — ENTER BUILDER MODE ───────────────────────────────
 function goOut() {
   const s = _currentPublicState;
   if (!s) return;
   const localId = Network.getLocalPlayerId();
   if (s.players[s.turnIdx]?.id !== localId) { UI.showToast("It's not your turn!"); return; }
   if (s.phase !== 'discard') { UI.showToast('You must draw a card first.'); return; }
+  if (_localHand.length < 3) { UI.showToast('Not enough cards to go out.'); return; }
 
+  // Enter go-out builder mode
   _goOutMode = true;
-  _goOutMeldGroups = [new Set()];
+  _goOutMeldGroups = [new Set()]; // Start with one empty group
   _goOutDiscardId = null;
-  document.getElementById('goout-builder-controls').style.display = 'block';
+
+  // Show the go-out builder controls bar
+  document.getElementById('goout-builder-bar').style.display = 'flex';
   document.getElementById('btn-go-out').style.display = 'none';
+
   _renderGameTable(s);
-  UI.showGoOutBuilderInstructions();
+  UI.showToast('Tap each card → assign to a Group or mark as Discard. When done, tap SUBMIT.', 5000);
+}
+
+// ── GO-OUT CARD ASSIGNMENT ────────────────────────────────────
+// Called when player taps a card in go-out builder mode
+function handleGoOutCardClick(card, action) {
+  const s = _currentPublicState;
+  if (!s) return;
+
+  if (action === 'discard') {
+    // Mark as the one discard card — remove from any group
+    _goOutMeldGroups.forEach(g => g.delete(card.id));
+    _goOutDiscardId = (_goOutDiscardId === card.id) ? null : card.id;
+
+  } else if (action === 'unassign') {
+    _goOutMeldGroups.forEach(g => g.delete(card.id));
+    if (_goOutDiscardId === card.id) _goOutDiscardId = null;
+
+  } else if (action.startsWith('group-')) {
+    const groupIdx = parseInt(action.split('-')[1]);
+    // Remove from all other assignments first
+    _goOutMeldGroups.forEach(g => g.delete(card.id));
+    if (_goOutDiscardId === card.id) _goOutDiscardId = null;
+    // Ensure group exists
+    while (_goOutMeldGroups.length <= groupIdx) _goOutMeldGroups.push(new Set());
+    _goOutMeldGroups[groupIdx].add(card.id);
+  }
+
+  UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId, handleGoOutCardClick, handleCardReorder);
+  UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
+}
+
+// Add a new empty meld group
+function addGoOutGroup() {
+  _goOutMeldGroups.push(new Set());
+  const s = _currentPublicState;
+  if (s) {
+    UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId, handleGoOutCardClick, handleCardReorder);
+    UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
+  }
+}
+
+// ── SUBMIT GO OUT ─────────────────────────────────────────────
+function submitGoOut() {
+  const s = _currentPublicState;
+  if (!s) return;
+
+  // Step 1: Check discard is chosen
+  if (!_goOutDiscardId) {
+    UI.showGoOutError('You must mark one card as your DISCARD before going out.');
+    return;
+  }
+
+  // Step 2: Build meld group arrays (filter empty groups)
+  const meldGroupArrays = _goOutMeldGroups
+    .map(g => [...g])
+    .filter(g => g.length > 0);
+
+  if (meldGroupArrays.length === 0) {
+    UI.showGoOutError('You need at least one meld group. Tap cards and assign them to Group 1.');
+    return;
+  }
+
+  // Step 3: Check all cards are accounted for (every card in a group or discard)
+  const allAssigned = new Set([_goOutDiscardId, ...meldGroupArrays.flat()]);
+  const unassigned = _localHand.filter(c => !allAssigned.has(c.id));
+  if (unassigned.length > 0) {
+    const labels = unassigned.map(c => getCardLabel(c)).join(', ');
+    UI.showGoOutError(`These cards are not assigned: ${labels}. Every card must be in a group or marked as Discard.`);
+    return;
+  }
+
+  // Step 4: Validate each meld group
+  for (let i = 0; i < meldGroupArrays.length; i++) {
+    const groupCards = meldGroupArrays[i].map(id => _localHand.find(c => c.id === id)).filter(Boolean);
+    if (groupCards.length < 3) {
+      UI.showGoOutError(`Group ${i + 1} has only ${groupCards.length} card${groupCards.length !== 1 ? 's' : ''} — needs at least 3.`);
+      return;
+    }
+    if (!isValidMeld(groupCards, s.round)) {
+      const cardLabels = groupCards.map(c => getCardLabel(c)).join(', ');
+      UI.showGoOutError(
+        `Group ${i + 1} (${cardLabels}) is not a valid meld.\n` +
+        `A Book = 3+ cards of the same rank.\n` +
+        `A Run = 3+ consecutive cards of the same suit.`
+      );
+      return;
+    }
+  }
+
+  // Step 5: Make sure discard card is not also in a meld group
+  if (meldGroupArrays.flat().includes(_goOutDiscardId)) {
+    UI.showGoOutError('Your discard card cannot also be in a meld group.');
+    return;
+  }
+
+  // All valid — send go-out action
+  Network.sendAction({
+    type: 'go-out',
+    discardCardId: _goOutDiscardId,
+    meldGroups: meldGroupArrays,
+  });
+  _exitGoOutMode();
+}
+
+// ── CANCEL GO OUT ─────────────────────────────────────────────
+function cancelGoOut() {
+  _exitGoOutMode();
+  const s = _currentPublicState;
+  if (s) _renderGameTable(s);
 }
 
 function _exitGoOutMode() {
   _goOutMode = false;
   _goOutMeldGroups = [];
   _goOutDiscardId = null;
-  _pendingGoOut = false;
-  const ctrl = document.getElementById('goout-builder-controls');
-  if (ctrl) ctrl.style.display = 'none';
-}
-
-function handleGoOutCardClick(card, action) {
-  const s = _currentPublicState;
-  if (!s) return;
-
-  if (action === 'discard') {
-    _goOutDiscardId = _goOutDiscardId === card.id ? null : card.id;
-    _goOutMeldGroups.forEach(g => g.delete(card.id));
-  } else if (action === 'unassign') {
-    _goOutMeldGroups.forEach(g => g.delete(card.id));
-    if (_goOutDiscardId === card.id) _goOutDiscardId = null;
-  } else if (action.startsWith('group-')) {
-    const groupIdx = parseInt(action.split('-')[1]);
-    _goOutMeldGroups.forEach(g => g.delete(card.id));
-    if (_goOutDiscardId === card.id) _goOutDiscardId = null;
-    while (_goOutMeldGroups.length <= groupIdx) _goOutMeldGroups.push(new Set());
-    _goOutMeldGroups[groupIdx].add(card.id);
-  }
-
-  UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
-    handleGoOutCardClick, handleCardReorder);
-  UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
-}
-
-function addGoOutGroup() {
-  _goOutMeldGroups.push(new Set());
-  const s = _currentPublicState;
-  if (s) UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
-    handleGoOutCardClick, handleCardReorder);
-}
-
-function cancelGoOut() {
-  document.getElementById('goout-modal').classList.add('hidden');
-  _exitGoOutMode();
-  const s = _currentPublicState;
-  if (s) _renderGameTable(s);
-}
-
-function confirmGoOut() {
-  document.getElementById('goout-modal').classList.add('hidden');
-  const meldGroupArrays = _goOutMeldGroups.map(g => [...g]);
-  Network.sendAction({ type: 'go-out', discardCardId: _goOutDiscardId, meldGroups: meldGroupArrays });
-  _exitGoOutMode();
-}
-
-function submitGoOut() {
-  const s = _currentPublicState;
-  if (!s) return;
-
-  if (!_goOutDiscardId) {
-    UI.showToast('Select one card to discard (tap a card → "Discard").', 3000);
-    return;
-  }
-
-  const meldGroupArrays = _goOutMeldGroups.map(g => [...g]).filter(g => g.length > 0);
-  if (meldGroupArrays.length === 0) {
-    UI.showToast('You need at least one meld group.', 3000);
-    return;
-  }
-
-  const validation = validateGoOutLocal(_localHand, _goOutDiscardId, meldGroupArrays, s.round);
-  if (!validation.ok) {
-    UI.showToast('⚠️ ' + validation.err + ' — Fix your groups and try again.', 4000);
-    return;
-  }
-
-  document.getElementById('goout-modal').classList.remove('hidden');
-  const preview = document.getElementById('goout-hand-preview');
-  preview.innerHTML = '';
-  const info = document.createElement('div');
-  info.style.cssText = 'font-size:.85rem;color:#a0c0a0;margin-bottom:.5rem;text-align:left;';
-  info.textContent = `${meldGroupArrays.length} meld group(s). Discard: ${getCardLabel(_localHand.find(c=>c.id===_goOutDiscardId))}`;
-  preview.appendChild(info);
-}
-
-function validateGoOutLocal(hand, discardCardId, meldGroups, round) {
-  const discardCard = hand.find(c => c.id === discardCardId);
-  if (!discardCard) return { ok: false, err: 'Discard card not found' };
-
-  const melds = meldGroups.map(group =>
-    group.map(id => hand.find(c => c.id === id)).filter(Boolean)
-  );
-
-  const meldCardIds = new Set(melds.flat().map(c => c.id));
-  if (meldCardIds.has(discardCardId)) return { ok: false, err: 'Your discard card cannot be in a meld group' };
-
-  const allUsed = new Set([...meldCardIds, discardCardId]);
-  for (const c of hand) {
-    if (!allUsed.has(c.id)) return { ok: false, err: 'All cards must be placed in a group or marked as discard' };
-  }
-
-  for (let i = 0; i < melds.length; i++) {
-    if (melds[i].length < 3) return { ok: false, err: `Group ${i+1} needs at least 3 cards` };
-    if (!isValidMeld(melds[i], round)) {
-      return { ok: false, err: `Group ${i+1} is not a valid book (same rank) or run (same suit in order)` };
-    }
-  }
-
-  return { ok: true };
+  const bar = document.getElementById('goout-builder-bar');
+  if (bar) bar.style.display = 'none';
 }
 
 // ── SORT HAND ─────────────────────────────────────────────────
@@ -662,8 +517,8 @@ function sortHand() {
     return a.rank - b.rank;
   });
   if (_goOutMode) {
-    UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
-      handleGoOutCardClick, handleCardReorder);
+    UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId, handleGoOutCardClick, handleCardReorder);
+    UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
   } else {
     UI.renderHand(_localHand, s.round, _selectedCards, handleCardClick, handleCardReorder);
   }
@@ -690,7 +545,6 @@ function toggleScoreboard() {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     document.getElementById('scoreboard-overlay').classList.add('hidden');
-    document.getElementById('goout-modal').classList.add('hidden');
     if (_goOutMode) cancelGoOut();
   }
   if (e.key === 's' && document.getElementById('screen-game').classList.contains('active')) {
@@ -703,9 +557,5 @@ window.addEventListener('load', () => {
   showScreen('screen-splash');
   _refreshAvatarPreview('create', _createAvatar);
   _refreshAvatarPreview('join',   _joinAvatar);
-
-  // Check for a saved session (e.g. page was refreshed mid-game)
-  _checkForSavedSession();
-
-  console.log('Five Crowns v4 loaded ♛');
+  console.log('Five Crowns v5 loaded ♛');
 });
