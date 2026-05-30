@@ -29,7 +29,7 @@ let _createAvatar = { animal: 'none', color: 'gold' };
 let _joinAvatar   = { animal: 'none', color: 'gold' };
 
 const COLOR_NAMES  = { red:'Red', pink:'Berry Pink', periwinkle:'Periwinkle', sage:'Sage', orange:'Orange', gold:'Gold' };
-const ANIMAL_NAMES = { '🐧':'Penguin','🐉':'Dragon','🦫':'Capybara','🐢':'Turtle','🦕':'Dinosaur','🐩':'Poodle','none':'None' };
+const ANIMAL_NAMES = { '🐧':'Penguin','🐉':'Dragon','🦫':'Capybara','🐢':'Turtle','🦕':'Dinosaur','🐩':'Poodle','🪼':'Jellyfish','none':'None' };
 
 function _refreshAvatarPreview(prefix, avatar) {
   const previewEl = document.getElementById(`${prefix}-avatar-preview`);
@@ -286,6 +286,11 @@ function handleStateUpdate(publicState, result) {
     UI.animateDraw(action === 'draw-discard');
   }
 
+  // Notify when the draw pile was reshuffled from the discard pile
+  if (result && result.reshuffled) {
+    UI.showToast('♻️ Draw pile empty — discard pile reshuffled into a new draw pile.', 3500);
+  }
+
   _renderGameTable(publicState);
 
   // ── TOASTS ──
@@ -314,6 +319,38 @@ function _getPlayerName(publicState, id) {
   return publicState.players.find(p => p.id === id)?.name || 'Unknown';
 }
 
+// ── YOU-ZONE HELPER ──────────────────────────────────────────
+// Populates the you-zone with this player's avatar, name, score, turn glow
+function _updateYouZone(localPlayer, isMyTurn, phase, drawnThisTurn) {
+  // Avatar
+  const avEl = document.getElementById('you-avatar-display');
+  if (avEl && localPlayer) {
+    const av = Network.getLocalAvatar() || { animal: 'none', color: 'gold' };
+    const colorMap = { red:'#e53e3e',pink:'#d53f8c',periwinkle:'#7b8cde',sage:'#68a57a',orange:'#ed8936',gold:'#d4a017' };
+    avEl.style.background = colorMap[av.color] || colorMap.gold;
+    avEl.textContent = (av.animal && av.animal !== 'none') ? av.animal
+      : Network.getLocalPlayerName().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  }
+
+  // Name
+  const nameEl = document.getElementById('you-name-display');
+  if (nameEl) nameEl.textContent = Network.getLocalPlayerName();
+
+  // Score
+  const scoreEl = document.getElementById('you-score-display');
+  if (scoreEl && localPlayer) scoreEl.textContent = localPlayer.score + ' pts';
+
+  // Turn glow on you-zone
+  const youZone = document.getElementById('you-zone');
+  if (youZone) youZone.classList.toggle('active-turn', isMyTurn && phase !== 'round-end' && phase !== 'game-over');
+
+  // Turn badge + go-out button (these moved into you-zone in HTML)
+  const badge = document.getElementById('turn-indicator');
+  if (badge) badge.classList.toggle('hidden', !isMyTurn || phase === 'round-end' || phase === 'game-over');
+  const goOutBtn = document.getElementById('btn-go-out');
+  if (goOutBtn) goOutBtn.style.display = (isMyTurn && phase === 'discard') ? 'inline-block' : 'none';
+}
+
 // ── RENDER GAME TABLE ─────────────────────────────────────────
 function _renderGameTable(s) {
   const localId = Network.getLocalPlayerId();
@@ -327,8 +364,8 @@ function _renderGameTable(s) {
   UI.renderDiscardTop(s.discardTop, s.round);
   UI.renderGoneOutDisplay(s.players, localId);
 
-  document.getElementById('player-name-display').textContent = Network.getLocalPlayerName();
-  UI.updateTurnIndicator(isMyTurn, s.phase, s.drawnThisTurn);
+  // Populate the you-zone (avatar, name, score, turn glow)
+  _updateYouZone(localPlayer, isMyTurn, s.phase, s.drawnThisTurn);
 
   // Render hand: go-out builder mode OR normal hand
   if (_goOutMode) {
