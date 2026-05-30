@@ -1,9 +1,9 @@
 // ============================================================
-// ui.js — DOM Rendering for Five Crowns (v3)
+// ui.js — DOM Rendering for Five Crowns (v5)
 // Changes:
-//   - Go-out builder UI (manual meld grouping)
-//   - Final turn draw/discard instructions
-//   - Full mobile/responsive rendering
+//   - showGoOutError: clear error modal when groups are invalid
+//   - Final-turn instructions clearly shown in action log
+//   - Go-out builder: cleaner group colors + status bar
 // ============================================================
 
 const UI = (() => {
@@ -13,10 +13,8 @@ const UI = (() => {
     red:'#e53e3e', pink:'#d53f8c', periwinkle:'#7b8cde',
     sage:'#68a57a', orange:'#ed8936', gold:'#d4a017',
   };
-
   function avatarBg(avatar) { return COLOR_MAP[avatar?.color] || COLOR_MAP.gold; }
   function avatarContent(avatar) { return (!avatar || avatar.animal === 'none') ? null : avatar.animal; }
-
   function renderAvatarEl(avatar, size = 34) {
     const el = document.createElement('div');
     el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:${avatarBg(avatar)};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*0.55)}px;border:2px solid rgba(255,255,255,0.2);flex-shrink:0;`;
@@ -67,13 +65,8 @@ const UI = (() => {
     const container = document.getElementById('player-hand');
     container.innerHTML = '';
     container.className = 'hand-container';
-
     hand.forEach((card, idx) => {
-      const el = renderCard(card, {
-        selected: selectedIds.has(card.id),
-        round,
-        onClick: onCardClick,
-      });
+      const el = renderCard(card, { selected: selectedIds.has(card.id), round, onClick: onCardClick });
       el.setAttribute('draggable', true);
       el.dataset.idx = idx;
       _attachDrag(el, idx, container, onReorder);
@@ -83,17 +76,15 @@ const UI = (() => {
   }
 
   // ── GO-OUT BUILDER ────────────────────────────────────────
-  // Shows hand with assignment UI: each card can be put in a group or marked discard
+  // Each card gets a badge showing its assignment, and a tap opens a picker
   function renderGoOutBuilder(hand, round, meldGroups, discardId, onCardAction, onReorder) {
     const container = document.getElementById('player-hand');
     container.innerHTML = '';
     container.className = 'hand-container goout-builder';
 
-    // Build assignment map: cardId → { type: 'group'|'discard'|'none', groupIdx }
+    // Build assignment map
     const assigned = {};
-    meldGroups.forEach((group, gi) => {
-      group.forEach(id => { assigned[id] = { type: 'group', groupIdx: gi }; });
-    });
+    meldGroups.forEach((group, gi) => { group.forEach(id => { assigned[id] = { type: 'group', groupIdx: gi }; }); });
     if (discardId) assigned[discardId] = { type: 'discard' };
 
     hand.forEach((card, idx) => {
@@ -101,7 +92,7 @@ const UI = (() => {
       const wrapper = document.createElement('div');
       wrapper.className = 'goout-card-wrapper';
 
-      // Status badge above card
+      // Badge above card showing assignment
       const badge = document.createElement('div');
       badge.className = 'goout-badge';
       if (assign?.type === 'group') {
@@ -118,17 +109,21 @@ const UI = (() => {
       wrapper.appendChild(badge);
 
       const cardEl = renderCard(card, { round });
-      if (assign?.type === 'group') cardEl.classList.add('goout-in-group');
+      if (assign?.type === 'group') {
+        cardEl.classList.add('goout-in-group');
+        cardEl.style.borderColor = _groupColor(assign.groupIdx);
+        cardEl.style.boxShadow = `0 0 0 2px ${_groupColor(assign.groupIdx)}55`;
+      }
       if (assign?.type === 'discard') cardEl.classList.add('goout-is-discard');
       if (!assign) cardEl.classList.add('goout-unset');
 
-      // Tap opens action picker
+      // Tap opens the action picker
       cardEl.addEventListener('click', (e) => {
         e.stopPropagation();
         _showCardActionPicker(card, meldGroups.length, assign, onCardAction);
       });
 
-      // Drag reorder
+      // Drag reorder still works
       cardEl.setAttribute('draggable', true);
       cardEl.dataset.idx = idx;
       _attachDrag(cardEl, idx, container, onReorder);
@@ -137,9 +132,6 @@ const UI = (() => {
       wrapper.appendChild(cardEl);
       container.appendChild(wrapper);
     });
-
-    // Update live validation status
-    updateGoOutStatus(hand, round, meldGroups, discardId);
   }
 
   function _groupColor(idx) {
@@ -147,51 +139,58 @@ const UI = (() => {
     return colors[idx % colors.length];
   }
 
-  // Card action picker: small popup with options
+  // Popup picker when a card is tapped in go-out builder mode
   let _pickerEl = null;
   function _showCardActionPicker(card, numGroups, currentAssign, onCardAction) {
-    // Remove existing picker
     if (_pickerEl) { _pickerEl.remove(); _pickerEl = null; }
 
     const picker = document.createElement('div');
     picker.className = 'card-action-picker';
     _pickerEl = picker;
 
+    // Card label at top
     const label = document.createElement('div');
     label.className = 'picker-label';
-    label.textContent = getCardLabel(card);
+    label.textContent = `Assign: ${getCardLabel(card)}`;
     picker.appendChild(label);
 
     // Discard button
     const discBtn = document.createElement('button');
     discBtn.className = 'picker-btn picker-discard' + (currentAssign?.type === 'discard' ? ' active' : '');
-    discBtn.textContent = '🗑 Discard';
+    discBtn.textContent = '🗑️  Mark as Discard';
     discBtn.onclick = () => { onCardAction(card, 'discard'); picker.remove(); _pickerEl = null; };
     picker.appendChild(discBtn);
 
-    // Group buttons
+    // Separator
+    const sep = document.createElement('div');
+    sep.style.cssText = 'font-size:.7rem;color:#6a8a6a;padding:.2rem 0;text-align:center;letter-spacing:.1em;text-transform:uppercase;';
+    sep.textContent = '— or add to meld group —';
+    picker.appendChild(sep);
+
+    // Group buttons (one per existing group)
     for (let g = 0; g < numGroups; g++) {
-      const gBtn = document.createElement('button');
       const isActive = currentAssign?.type === 'group' && currentAssign.groupIdx === g;
+      const gBtn = document.createElement('button');
       gBtn.className = 'picker-btn picker-group' + (isActive ? ' active' : '');
       gBtn.style.borderColor = _groupColor(g);
-      gBtn.style.color = _groupColor(g);
+      gBtn.style.color = isActive ? 'white' : _groupColor(g);
+      if (isActive) gBtn.style.background = _groupColor(g);
       gBtn.textContent = `Group ${g + 1}`;
       const gi = g;
       gBtn.onclick = () => { onCardAction(card, `group-${gi}`); picker.remove(); _pickerEl = null; };
       picker.appendChild(gBtn);
     }
 
-    // Unassign
+    // Unassign button (only if currently assigned)
     if (currentAssign) {
       const unBtn = document.createElement('button');
       unBtn.className = 'picker-btn picker-unassign';
-      unBtn.textContent = '✕ Remove';
+      unBtn.textContent = '✕  Remove Assignment';
       unBtn.onclick = () => { onCardAction(card, 'unassign'); picker.remove(); _pickerEl = null; };
       picker.appendChild(unBtn);
     }
 
-    // Close
+    // Cancel
     const closeBtn = document.createElement('button');
     closeBtn.className = 'picker-btn picker-close';
     closeBtn.textContent = 'Cancel';
@@ -200,16 +199,15 @@ const UI = (() => {
 
     document.getElementById('player-area').appendChild(picker);
 
-    // Auto-close on outside tap
+    // Dismiss on outside click
     setTimeout(() => {
       document.addEventListener('click', function outsideClick(e) {
-        if (!picker.contains(e.target)) { picker.remove(); _pickerEl = null; document.removeEventListener('click', outsideClick); }
+        if (!picker.contains(e.target)) {
+          picker.remove(); _pickerEl = null;
+          document.removeEventListener('click', outsideClick);
+        }
       });
-    }, 100);
-  }
-
-  function showGoOutBuilderInstructions() {
-    showToast('Tap each card to assign it to a Group or mark as Discard. Then tap SUBMIT GO OUT.', 5000);
+    }, 80);
   }
 
   // Live status bar for go-out builder
@@ -223,17 +221,45 @@ const UI = (() => {
 
     const unassigned = hand.filter(c => !assigned.has(c.id)).length;
     const hasDiscard = !!discardId;
+    const groupsFilled = meldGroups.some(g => g.size > 0);
 
     if (unassigned > 0) {
-      statusEl.textContent = `${unassigned} card${unassigned>1?'s':''} not yet assigned`;
+      statusEl.textContent = `⚠️ ${unassigned} card${unassigned > 1 ? 's' : ''} not yet assigned — tap a card to assign it`;
       statusEl.className = 'goout-status-bar status-warn';
     } else if (!hasDiscard) {
-      statusEl.textContent = 'Select one card to discard';
+      statusEl.textContent = '⚠️ Mark one card as your Discard';
+      statusEl.className = 'goout-status-bar status-warn';
+    } else if (!groupsFilled) {
+      statusEl.textContent = '⚠️ Assign cards to at least one meld Group';
       statusEl.className = 'goout-status-bar status-warn';
     } else {
-      statusEl.textContent = 'All cards assigned! Tap SUBMIT GO OUT to validate.';
+      statusEl.textContent = '✅ All cards assigned! Tap SUBMIT GO OUT to validate your melds.';
       statusEl.className = 'goout-status-bar status-ok';
     }
+  }
+
+  // ── GO-OUT ERROR MODAL ────────────────────────────────────
+  // Shows a clear error when submitted melds are invalid
+  function showGoOutError(message) {
+    // Remove any existing error
+    const existing = document.getElementById('goout-error-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'goout-error-modal';
+    modal.className = 'goout-error-overlay';
+    modal.innerHTML = `
+      <div class="goout-error-box">
+        <div class="goout-error-icon">⚠️</div>
+        <div class="goout-error-title">Invalid Go-Out</div>
+        <div class="goout-error-msg">${escHtml(message)}</div>
+        <div class="goout-error-hint">Fix your groups and try again.</div>
+        <button class="btn btn-primary goout-error-btn" onclick="document.getElementById('goout-error-modal').remove()">OK, Fix It</button>
+      </div>`;
+    document.body.appendChild(modal);
+
+    // Auto-dismiss after 6s
+    setTimeout(() => { modal.remove(); }, 6000);
   }
 
   // ── DRAG HELPERS ─────────────────────────────────────────
@@ -310,14 +336,25 @@ const UI = (() => {
 
     displayEl.style.display = 'block';
     const isMe = goingOutPlayer.id === localPlayerId;
-    labelEl.textContent = isMe ? '✅ Your melds (you went out!)' : `✅ ${escHtml(goingOutPlayer.name)} went out:`;
+    labelEl.textContent = isMe
+      ? '✅ Your melds (you went out!)'
+      : `✅ ${escHtml(goingOutPlayer.name)} went out — their melds:`;
     meldsEl.innerHTML = '';
 
     goingOutPlayer.revealedMelds.forEach((meld, i) => {
-      if (i > 0) { const sep = document.createElement('div'); sep.className = 'gone-out-separator'; meldsEl.appendChild(sep); }
+      if (i > 0) {
+        const sep = document.createElement('div');
+        sep.className = 'gone-out-separator';
+        meldsEl.appendChild(sep);
+      }
       const group = document.createElement('div');
       group.className = 'gone-out-meld-group';
-      meld.forEach(card => { group.appendChild(renderCard(card, { round: 1 })); });
+      // Label the meld type
+      const meldLabel = document.createElement('div');
+      meldLabel.className = 'gone-out-meld-label';
+      meldLabel.textContent = `Meld ${i + 1}`;
+      group.appendChild(meldLabel);
+      meld.forEach(card => { group.appendChild(renderCard(card, {})); });
       meldsEl.appendChild(group);
     });
   }
@@ -379,9 +416,14 @@ const UI = (() => {
     }
     const status = document.getElementById('lobby-status');
     const filled = players.length;
-    status.textContent = filled < maxPlayers ? `${filled} / ${maxPlayers} players joined. Waiting for more…` : `All ${maxPlayers} players have joined! Ready to start.`;
+    status.textContent = filled < maxPlayers
+      ? `${filled} / ${maxPlayers} players joined. Waiting for more…`
+      : `All ${maxPlayers} players have joined! Ready to start.`;
     const startBtn = document.getElementById('start-game-btn');
-    if (startBtn) { startBtn.disabled = filled < 2; startBtn.textContent = filled < 2 ? 'Need at least 2 players' : `START GAME (${filled} players)`; }
+    if (startBtn) {
+      startBtn.disabled = filled < 2;
+      startBtn.textContent = filled < 2 ? 'Need at least 2 players' : `START GAME (${filled} players)`;
+    }
   }
 
   // ── GAME HEADER ──────────────────────────────────────────
@@ -390,7 +432,7 @@ const UI = (() => {
     let phaseText = '';
     if (phase === 'draw') phaseText = 'Draw a card';
     else if (phase === 'discard') phaseText = 'Discard a card';
-    else if (phase === 'going-out') phaseText = drawnThisTurn ? 'Final discard' : 'Final draw';
+    else if (phase === 'going-out') phaseText = drawnThisTurn ? '⚡ Final discard' : '⚡ Final draw';
     else if (phase === 'round-end') phaseText = 'Round over';
     else if (phase === 'game-over') phaseText = 'Game over!';
     document.getElementById('hdr-phase').textContent = phaseText;
@@ -401,8 +443,8 @@ const UI = (() => {
     const badge = document.getElementById('turn-indicator');
     badge.classList.toggle('hidden', !isMyTurn || phase === 'round-end' || phase === 'game-over');
 
+    // Show GO OUT button only in normal discard phase (not final turns)
     const goOutBtn = document.getElementById('btn-go-out');
-    // Show GO OUT button only during normal discard phase (not final turns)
     goOutBtn.style.display = (isMyTurn && phase === 'discard') ? 'inline-block' : 'none';
   }
 
@@ -425,20 +467,17 @@ const UI = (() => {
     const overlay = document.getElementById('deal-overlay');
     overlay.classList.remove('hidden');
     overlay.innerHTML = '';
-
-    const drawPileEl = document.getElementById('draw-pile');
+    const drawPileEl  = document.getElementById('draw-pile');
     const playerAreaEl = document.getElementById('player-hand');
-    const gameEl = document.getElementById('screen-game');
+    const gameEl      = document.getElementById('screen-game');
     const dpRect  = drawPileEl.getBoundingClientRect();
     const paRect  = playerAreaEl.getBoundingClientRect();
     const gameRect = gameEl.getBoundingClientRect();
-
     const sx = dpRect.left + dpRect.width/2  - gameRect.left - 28;
     const sy = dpRect.top  + dpRect.height/2 - gameRect.top  - 39;
     const handW   = paRect.width;
     const ex_base = paRect.left - gameRect.left;
     const ey      = paRect.top  - gameRect.top + 10;
-
     const cardDelay = Math.min(120, 800 / numCards);
     for (let i = 0; i < numCards; i++) {
       const cardEl = document.createElement('div');
@@ -453,13 +492,16 @@ const UI = (() => {
       cardEl.style.setProperty('--ey', `${ey}px`);
       cardEl.style.setProperty('--sr', '0deg');
       cardEl.style.setProperty('--er', `${rotation}deg`);
-      cardEl.style.setProperty('--deal-dur',   '250ms');
+      cardEl.style.setProperty('--deal-dur', '250ms');
       cardEl.style.setProperty('--deal-delay', `${i * cardDelay}ms`);
       cardEl.style.left = '0'; cardEl.style.top = '0';
       overlay.appendChild(cardEl);
     }
-
-    setTimeout(() => { overlay.classList.add('hidden'); overlay.innerHTML = ''; if (onComplete) onComplete(); }, numCards * cardDelay + 350);
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      overlay.innerHTML = '';
+      if (onComplete) onComplete();
+    }, numCards * cardDelay + 350);
   }
 
   function animateDraw(fromDiscard) {
@@ -505,7 +547,9 @@ const UI = (() => {
     const localId = Network.getLocalPlayerId();
     const isWinner = winnerId === localId;
     document.getElementById('winner-name').textContent = isWinner ? '🏆 You Win!' : `🏆 ${winnerName} Wins!`;
-    document.querySelector('.winner-sub').textContent = isWinner ? 'Congratulations! You had the lowest score!' : `${winnerName} had the lowest total score. Better luck next time!`;
+    document.querySelector('.winner-sub').textContent = isWinner
+      ? 'Congratulations! You had the lowest score!'
+      : `${winnerName} had the lowest total score. Better luck next time!`;
     const finalTable = document.getElementById('final-scores-table');
     finalTable.innerHTML = '';
     const sorted = [...results].sort((a,b) => a.totalScore - b.totalScore);
@@ -566,7 +610,7 @@ const UI = (() => {
     renderDiscardTop, renderOpponents, renderGoneOutDisplay, renderLobby,
     updateHeader, updateTurnIndicator, updateDrawPile, logAction,
     renderRoundResults, renderGameOver, renderScoreboard,
-    showToast, playDealAnimation, animateDraw,
-    showGoOutBuilderInstructions, updateGoOutStatus,
+    showToast, showGoOutError, updateGoOutStatus,
+    playDealAnimation, animateDraw,
   };
 })();
