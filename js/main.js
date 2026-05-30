@@ -1,9 +1,10 @@
 // ============================================================
-// main.js — App Controller for Five Crowns (v3)
-// Changes:
-//   - Manual go-out: player groups cards into melds, picks discard
-//   - Final-turn players must draw then discard
-//   - Full responsive / mobile-friendly touch support
+// main.js — App Controller for Five Crowns (v4)
+// NEW: Reconnection support
+//   - On disconnect: auto-shows rejoin banner with saved session
+//   - Rejoin button appears on splash/menu if session exists
+//   - Auto-retries reconnect up to 5 times with backoff
+//   - Leaving voluntarily clears the saved session
 // ============================================================
 
 function showScreen(id) {
@@ -21,9 +22,13 @@ let _localHand          = [];
 let _dealAnimating      = false;
 
 // Go-out builder state
-let _goOutMeldGroups    = [];   // array of Set(cardId)
-let _goOutDiscardId     = null; // single card chosen as discard
+let _goOutMeldGroups    = [];
+let _goOutDiscardId     = null;
 let _goOutMode          = false;
+
+// Reconnect state
+let _rejoinAttempts     = 0;
+let _rejoinTimer        = null;
 
 // ── AVATAR SELECTION ─────────────────────────────────────────
 let _createAvatar = { animal: 'none', color: 'gold' };
@@ -81,7 +86,14 @@ function createRoom() {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: (msg) => UI.showToast(msg),
-    onError: (err) => { UI.showToast('⚠️ ' + err, 4000); console.error(err); },
+    onError: (err) => {
+      if (err === 'disconnected') {
+        _handleSelfDisconnect();
+      } else {
+        UI.showToast('⚠️ ' + err, 4000);
+        console.error(err);
+      }
+    },
   });
   document.getElementById('lobby-room-code').textContent = code;
   document.getElementById('lobby-host-controls').style.display = 'block';
@@ -99,7 +111,14 @@ function joinRoom() {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: (msg) => UI.showToast(msg),
-    onError: (err) => { UI.showToast('⚠️ ' + err, 4000); console.error(err); },
+    onError: (err) => {
+      if (err === 'disconnected') {
+        _handleSelfDisconnect();
+      } else {
+        UI.showToast('⚠️ ' + err, 4000);
+        console.error(err);
+      }
+    },
   });
 }
 
@@ -113,17 +132,160 @@ function copyRoomCode() {
 function hostStartGame() { Network.hostStartGame(); }
 
 function leaveRoom() {
+  // Voluntary leave — clear saved session so rejoin banner doesn't show
+  Network.clearSession();
   Network.destroy();
   _selectedCards.clear();
   _currentPublicState = null;
   _localHand = [];
   _exitGoOutMode();
+  clearTimeout(_rejoinTimer);
+  _rejoinAttempts = 0;
+  _hideBanner();
   showScreen('screen-main-menu');
 }
 
 // ── LOBBY HANDLER ─────────────────────────────────────────────
 function handleLobbyUpdate(players) {
   UI.renderLobby(players, Network.getLocalPlayerId(), Network.getExpectedPlayers());
+}
+
+// ── RECONNECTION SYSTEM ───────────────────────────────────────
+
+// Called when THIS player's connection to host drops
+function _handleSelfDisconnect() {
+  const session = Network.getSavedSession();
+  if (!session) {
+    // Nothing to recover — go back to menu
+    UI.showToast('Disconnected from game.', 3000);
+    showScreen('screen-main-menu');
+    return;
+  }
+
+  // Show the reconnect screen
+  showScreen('screen-reconnect');
+  document.getElementById('rc-room-code').textContent = session.roomCode;
+  document.getElementById('rc-player-name').textContent = session.name;
+  document.getElementById('rc-status').textContent = 'Connection lost. Attempting to reconnect…';
+  document.getElementById('rc-attempts').textContent = '';
+
+  // Start auto-reconnect
+  _rejoinAttempts = 0;
+  _scheduleAutoRejoin();
+}
+
+function _scheduleAutoRejoin() {
+  const delay = _rejoinAttempts === 0 ? 1500 : Math.min(_rejoinAttempts * 3000, 12000);
+  const rc = document.getElementById('rc-attempts');
+  if (rc) rc.textContent = `Attempt ${_rejoinAttempts + 1} of 5…`;
+
+  _rejoinTimer = setTimeout(() => {
+    Network.destroy();
+    _attemptRejoin();
+  }, delay);
+}
+
+function _attemptRejoin() {
+  const session = Network.getSavedSession();
+  if (!session) {
+    _rejoinFailed('No saved session found.');
+    return;
+  }
+
+  const statusEl = document.getElementById('rc-status');
+  if (statusEl) statusEl.textContent = `Connecting to room ${session.roomCode}…`;
+
+  Network.rejoinRoom({
+    onStateUpdate: (pub, result) => {
+      // Reconnect succeeded!
+      _rejoinAttempts = 0;
+      clearTimeout(_rejoinTimer);
+      handleStateUpdate(pub, result);
+      UI.showToast('✅ Reconnected! Welcome back.', 3000);
+    },
+    onLobbyUpdate: handleLobbyUpdate,
+    onMessage: (msg) => UI.showToast(msg),
+    onError: (err) => {
+      if (err === 'disconnected') {
+        _rejoinAttempts++;
+        if (_rejoinAttempts >= 5) {
+          _rejoinFailed('Could not reconnect after 5 attempts. The host may have closed the game.');
+        } else {
+          const statusEl2 = document.getElementById('rc-status');
+          if (statusEl2) statusEl2.textContent = `Attempt ${_rejoinAttempts} failed. Retrying…`;
+          _scheduleAutoRejoin();
+        }
+      } else {
+        _rejoinFailed(err);
+      }
+    },
+  });
+}
+
+function _rejoinFailed(reason) {
+  clearTimeout(_rejoinTimer);
+  _rejoinAttempts = 0;
+  const statusEl = document.getElementById('rc-status');
+  if (statusEl) {
+    statusEl.textContent = reason;
+    statusEl.style.color = '#f87171';
+  }
+  const attemptsEl = document.getElementById('rc-attempts');
+  if (attemptsEl) attemptsEl.textContent = '';
+}
+
+// Manual rejoin from reconnect screen
+function manualRejoin() {
+  clearTimeout(_rejoinTimer);
+  _rejoinAttempts = 0;
+  const statusEl = document.getElementById('rc-status');
+  if (statusEl) {
+    statusEl.textContent = 'Reconnecting…';
+    statusEl.style.color = '';
+  }
+  Network.destroy();
+  _attemptRejoin();
+}
+
+// Give up and go back to menu from reconnect screen
+function giveUpRejoin() {
+  clearTimeout(_rejoinTimer);
+  _rejoinAttempts = 0;
+  Network.clearSession();
+  Network.destroy();
+  _hideBanner();
+  showScreen('screen-main-menu');
+}
+
+// Rejoin button on the splash/menu (if session exists from a page refresh)
+function rejoinFromMenu() {
+  const session = Network.getSavedSession();
+  if (!session) { UI.showToast('No active session found.', 3000); return; }
+  showScreen('screen-reconnect');
+  document.getElementById('rc-room-code').textContent = session.roomCode;
+  document.getElementById('rc-player-name').textContent = session.name;
+  document.getElementById('rc-status').textContent = 'Reconnecting to your game…';
+  document.getElementById('rc-attempts').textContent = '';
+  _rejoinAttempts = 0;
+  _scheduleAutoRejoin();
+}
+
+// Show/hide the rejoin banner on the splash screen
+function _checkForSavedSession() {
+  const session = Network.getSavedSession();
+  const banner = document.getElementById('rejoin-banner');
+  if (!banner) return;
+  if (session) {
+    document.getElementById('rejoin-room-label').textContent = `Room ${session.roomCode} · ${session.name}`;
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function _hideBanner() {
+  const banner = document.getElementById('rejoin-banner');
+  if (banner) banner.style.display = 'none';
 }
 
 // ── GAME STATE HANDLER ────────────────────────────────────────
@@ -144,6 +306,7 @@ function handleStateUpdate(publicState, result) {
 
   if (publicState.phase === 'game-over') {
     _exitGoOutMode();
+    Network.clearSession(); // game over — no need to rejoin
     _renderGameTable(publicState);
     setTimeout(() => {
       const results = publicState.players.map(p => ({
@@ -172,6 +335,7 @@ function handleStateUpdate(publicState, result) {
     return;
   }
 
+  // Show game table for active game phases
   const gameScreen = document.getElementById('screen-game');
   if (!gameScreen.classList.contains('active') &&
       ['draw','discard','going-out'].includes(publicState.phase)) {
@@ -191,11 +355,19 @@ function handleStateUpdate(publicState, result) {
     return;
   }
 
+  // Handle rejoin — drop straight into the game
+  if (action === 'rejoin') {
+    _exitGoOutMode();
+    _selectedCards.clear();
+    showScreen('screen-game');
+    _renderGameTable(publicState);
+    return;
+  }
+
   if (action === 'draw-deck' || action === 'draw-discard') {
     UI.animateDraw(action === 'draw-discard');
   }
 
-  // If player just drew and was in going-out mode, exit it
   if ((action === 'draw-deck' || action === 'draw-discard') && _goOutMode) {
     _exitGoOutMode();
   }
@@ -208,7 +380,7 @@ function handleStateUpdate(publicState, result) {
     UI.showToast(
       isMe
         ? 'You went out! Everyone gets one more turn.'
-        : `${goingOutName} went out! See their melds above. Draw then discard on your final turn.`,
+        : `${goingOutName} went out! Draw then discard on your final turn.`,
       4500
     );
   } else if (action === 'next-turn') {
@@ -243,7 +415,6 @@ function _renderGameTable(s) {
   document.getElementById('player-name-display').textContent = Network.getLocalPlayerName();
   UI.updateTurnIndicator(isMyTurn, s.phase, s.drawnThisTurn);
 
-  // Render hand — in go-out mode use special builder render
   if (_goOutMode) {
     UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
       handleGoOutCardClick, handleCardReorder);
@@ -253,13 +424,17 @@ function _renderGameTable(s) {
     UI.renderHand(localPlayer.hand, s.round, _selectedCards, handleCardClick, handleCardReorder);
   }
 
-  // Action log
   if (currentTurnPlayer) {
     const isMe = currentTurnPlayer.id === localId;
     const name = isMe ? 'You' : currentTurnPlayer.name;
     let msg = '';
+
+    // Show disconnected indicator for that player's turn
+    const isDisconnected = currentTurnPlayer.disconnected;
     if (s.phase === 'draw') {
-      msg = `${name} ${isMe ? 'need to' : 'needs to'} draw a card.`;
+      msg = isDisconnected
+        ? `⚠️ ${name} is disconnected — their turn will be skipped shortly.`
+        : `${name} ${isMe ? 'need to' : 'needs to'} draw a card.`;
     } else if (s.phase === 'discard') {
       msg = `${name} ${isMe ? 'need to' : 'needs to'} discard.`;
     } else if (s.phase === 'going-out') {
@@ -273,7 +448,7 @@ function _renderGameTable(s) {
   }
 }
 
-// ── CARD REORDER (drag) ───────────────────────────────────────
+// ── CARD REORDER ─────────────────────────────────────────────
 function handleCardReorder(fromIdx, toIdx) {
   if (fromIdx === toIdx) return;
   if (fromIdx < 0 || toIdx < 0 || fromIdx >= _localHand.length || toIdx >= _localHand.length) return;
@@ -339,7 +514,6 @@ function drawFromDiscard() {
     return;
   }
 
-  // Discard selected card
   if (s.phase === 'discard' || (s.phase === 'going-out' && s.drawnThisTurn)) {
     if (_selectedCards.size === 0) {
       UI.showToast('Select a card from your hand first, then tap the discard pile.');
@@ -352,7 +526,6 @@ function drawFromDiscard() {
 }
 
 // ── GO OUT — MANUAL BUILDER ───────────────────────────────────
-
 function goOut() {
   const s = _currentPublicState;
   if (!s) return;
@@ -360,9 +533,8 @@ function goOut() {
   if (s.players[s.turnIdx]?.id !== localId) { UI.showToast("It's not your turn!"); return; }
   if (s.phase !== 'discard') { UI.showToast('You must draw a card first.'); return; }
 
-  // Enter go-out builder mode
   _goOutMode = true;
-  _goOutMeldGroups = [new Set()]; // start with one empty group
+  _goOutMeldGroups = [new Set()];
   _goOutDiscardId = null;
   document.getElementById('goout-builder-controls').style.display = 'block';
   document.getElementById('btn-go-out').style.display = 'none';
@@ -379,32 +551,27 @@ function _exitGoOutMode() {
   if (ctrl) ctrl.style.display = 'none';
 }
 
-// Card click inside go-out builder
 function handleGoOutCardClick(card, action) {
-  // action: 'discard' | 'group-N' | 'unassign'
   const s = _currentPublicState;
   if (!s) return;
 
   if (action === 'discard') {
     _goOutDiscardId = _goOutDiscardId === card.id ? null : card.id;
-    // Remove from any meld group if was there
     _goOutMeldGroups.forEach(g => g.delete(card.id));
   } else if (action === 'unassign') {
     _goOutMeldGroups.forEach(g => g.delete(card.id));
     if (_goOutDiscardId === card.id) _goOutDiscardId = null;
   } else if (action.startsWith('group-')) {
     const groupIdx = parseInt(action.split('-')[1]);
-    // Remove from other groups/discard
     _goOutMeldGroups.forEach(g => g.delete(card.id));
     if (_goOutDiscardId === card.id) _goOutDiscardId = null;
-    // Add to chosen group
     while (_goOutMeldGroups.length <= groupIdx) _goOutMeldGroups.push(new Set());
     _goOutMeldGroups[groupIdx].add(card.id);
   }
 
   UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
     handleGoOutCardClick, handleCardReorder);
-  _updateGoOutStatus();
+  UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
 }
 
 function addGoOutGroup() {
@@ -412,25 +579,6 @@ function addGoOutGroup() {
   const s = _currentPublicState;
   if (s) UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
     handleGoOutCardClick, handleCardReorder);
-}
-
-function removeGoOutGroup(idx) {
-  if (_goOutMeldGroups.length <= 1) return;
-  // Unassign cards in that group
-  _goOutMeldGroups.splice(idx, 1);
-  const s = _currentPublicState;
-  if (s) UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId,
-    handleGoOutCardClick, handleCardReorder);
-}
-
-function _updateGoOutStatus() {
-  const s = _currentPublicState;
-  if (!s) return;
-  const meldGroupArrays = _goOutMeldGroups.map(g => [...g]);
-  const validation = Game.validateGoOut
-    ? null // don't call game.js directly from client — just check via UI
-    : null;
-  UI.updateGoOutStatus(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId);
 }
 
 function cancelGoOut() {
@@ -442,7 +590,6 @@ function cancelGoOut() {
 
 function confirmGoOut() {
   document.getElementById('goout-modal').classList.add('hidden');
-  // Already validated before opening modal
   const meldGroupArrays = _goOutMeldGroups.map(g => [...g]);
   Network.sendAction({ type: 'go-out', discardCardId: _goOutDiscardId, meldGroups: meldGroupArrays });
   _exitGoOutMode();
@@ -463,14 +610,12 @@ function submitGoOut() {
     return;
   }
 
-  // Validate locally first (same logic as server)
   const validation = validateGoOutLocal(_localHand, _goOutDiscardId, meldGroupArrays, s.round);
   if (!validation.ok) {
     UI.showToast('⚠️ ' + validation.err + ' — Fix your groups and try again.', 4000);
     return;
   }
 
-  // Show confirmation
   document.getElementById('goout-modal').classList.remove('hidden');
   const preview = document.getElementById('goout-hand-preview');
   preview.innerHTML = '';
@@ -480,7 +625,6 @@ function submitGoOut() {
   preview.appendChild(info);
 }
 
-// Client-side validation mirror (matches game.js logic)
 function validateGoOutLocal(hand, discardCardId, meldGroups, round) {
   const discardCard = hand.find(c => c.id === discardCardId);
   if (!discardCard) return { ok: false, err: 'Discard card not found' };
@@ -500,7 +644,6 @@ function validateGoOutLocal(hand, discardCardId, meldGroups, round) {
   for (let i = 0; i < melds.length; i++) {
     if (melds[i].length < 3) return { ok: false, err: `Group ${i+1} needs at least 3 cards` };
     if (!isValidMeld(melds[i], round)) {
-      const isBook = melds[i].every(c => c.rank === 0 || isWild(c, round) || melds[i].filter(x => !isWild(x, round)).every(x => x.rank === melds[i].find(x => !isWild(x, round))?.rank));
       return { ok: false, err: `Group ${i+1} is not a valid book (same rank) or run (same suit in order)` };
     }
   }
@@ -561,13 +704,8 @@ window.addEventListener('load', () => {
   _refreshAvatarPreview('create', _createAvatar);
   _refreshAvatarPreview('join',   _joinAvatar);
 
-  // Prevent double-tap zoom on mobile
-  document.addEventListener('touchend', (e) => {
-    if (e.target.classList.contains('btn') || e.target.classList.contains('card') ||
-        e.target.classList.contains('pile')) {
-      e.preventDefault();
-    }
-  }, { passive: false });
+  // Check for a saved session (e.g. page was refreshed mid-game)
+  _checkForSavedSession();
 
-  console.log('Five Crowns v3 loaded ♛');
+  console.log('Five Crowns v4 loaded ♛');
 });
