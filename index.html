@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Five Crowns — Family Card Game</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👑</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- SCREEN 1: SPLASH / HOME -->
+  <div id="screen-splash" class="screen active">
+    <div class="splash-bg">
+      <div class="crown-float" id="cf1">♛</div>
+      <div class="crown-float" id="cf2">♛</div>
+      <div class="crown-float" id="cf3">♛</div>
+      <div class="crown-float" id="cf4">♛</div>
+      <div class="crown-float" id="cf5">♛</div>
+    </div>
+    <div class="splash-content">
+      <div class="splash-logo">
+        <div class="crown-title">👑</div>
+        <h1 class="game-title">FIVE CROWNS</h1>
+        <p class="game-subtitle">The Classic Family Card Game</p>
+        <div class="suit-row">★ ♥ ♣ ♠ ♦</div>
+      </div>
+      <div class="splash-buttons">
+        <button class="btn btn-primary" onclick="showScreen('screen-main-menu')">PLAY NOW</button>
+        <button class="btn btn-secondary" onclick="showScreen('screen-rules')">HOW TO PLAY</button>
+      </div>
+      <p class="splash-tagline">11 Rounds · 5 Suits · Rotating Wilds · Pure Fun</p>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: MAIN MENU -->
+  <div id="screen-main-menu" class="screen">
+    <div class="menu-bg"></div>
+    <div class="menu-content">
+      <h2 class="screen-title">Main Menu</h2>
+      <div class="menu-cards">
+
+        <div class="menu-card" onclick="showScreen('screen-create-room')">
+          <div class="menu-card-icon">🏠</div>
+          <h3>Create Room</h3>
+          <p>Start a new game and invite your family with a room code</p>
+        </div>
+
+        <div class="menu-card" onclick="showScreen('screen-join-room')">
+          <div class="menu-card-icon">🚪</div>
+          <h3>Join Room</h3>
+          <p>Enter a room code to join a game already in progress</p>
+        </div>
+
+        <div class="menu-card" onclick="showScreen('screen-rules')">
+          <div class="menu-card-icon">📖</div>
+          <h3>How to Play</h3>
+          <p>Learn the rules of Five Crowns</p>
+        </div>
+
+      </div>
+      <button class="btn btn-ghost" onclick="showScreen('screen-splash')">← Back</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: CREATE ROOM -->
+  <div id="screen-create-room" class="screen">
+    <div class="form-content">
+      <h2 class="screen-title">Create a Room</h2>
+      <div class="form-box">
+        <label>Your Name</label>
+        <input type="text" id="create-name" placeholder="Enter your name" maxlength="16" />
+
+        <label>Room Name <span class="optional">(optional)</span></label>
+        <input type="text" id="create-room-name" placeholder="Family Game Night" maxlength="24" />
+
+        <label>Number of Players</label>
+        <select id="create-players">
+          <option value="2">2 Players</option>
+          <option value="3">3 Players</option>
+          <option value="4" selected>4 Players</option>
+          <option value="5">5 Players</option>
+          <option value="6">6 Players</option>
+          <option value="7">7 Players</option>
+        </select>
+
+        <button class="btn btn-primary" onclick="createRoom()">CREATE ROOM</button>
+        <button class="btn btn-ghost" onclick="showScreen('screen-main-menu')">← Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 4: JOIN ROOM -->
+  <div id="screen-join-room" class="screen">
+    <div class="form-content">
+      <h2 class="screen-title">Join a Room</h2>
+      <div class="form-box">
+        <label>Your Name</label>
+        <input type="text" id="join-name" placeholder="Enter your name" maxlength="16" />
+
+        <label>Room Code</label>
+        <input type="text" id="join-code" placeholder="e.g. ABCD" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-size:1.4rem;text-align:center;" />
+
+        <button class="btn btn-primary" onclick="joinRoom()">JOIN ROOM</button>
+        <button class="btn btn-ghost" onclick="showScreen('screen-main-menu')">← Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 5: LOBBY -->
+  <div id="screen-lobby" class="screen">
+    <div class="lobby-content">
+      <h2 class="screen-title">Game Lobby</h2>
+      <div class="room-code-display">
+        <p class="room-label">Room Code — Share with Family!</p>
+        <div class="room-code" id="lobby-room-code">----</div>
+        <button class="btn btn-small" onclick="copyRoomCode()">📋 Copy Code</button>
+      </div>
+      <div class="lobby-players" id="lobby-players-list">
+        <!-- players injected here -->
+      </div>
+      <div class="lobby-status" id="lobby-status">Waiting for players…</div>
+      <div id="lobby-host-controls" style="display:none">
+        <button class="btn btn-primary" id="start-game-btn" onclick="hostStartGame()" disabled>START GAME</button>
+      </div>
+      <button class="btn btn-ghost" onclick="leaveRoom()">← Leave Room</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 6: GAME TABLE -->
+  <div id="screen-game" class="screen">
+
+    <div id="game-header">
+      <div class="game-info-left">
+        <span id="hdr-round">Round 1 / 11</span>
+        <span id="hdr-wild" class="wild-badge">Wild: 3s</span>
+      </div>
+      <div class="game-title-small">FIVE CROWNS</div>
+      <div class="game-info-right">
+        <span id="hdr-phase">Drawing Phase</span>
+        <button class="btn btn-tiny" onclick="toggleScoreboard()">📊 Scores</button>
+      </div>
+    </div>
+
+    <!-- Opponents Area -->
+    <div id="opponents-area"></div>
+
+    <!-- Center Table -->
+    <div id="table-center">
+      <div id="draw-pile" class="pile" onclick="drawFromDeck()">
+        <div class="pile-cards">
+          <div class="card-back">👑</div>
+        </div>
+        <div class="pile-label">Draw</div>
+        <div class="pile-count" id="draw-count">?</div>
+      </div>
+
+      <div id="discard-pile" class="pile" onclick="drawFromDiscard()">
+        <div class="pile-cards" id="discard-top">
+          <div class="card-empty">—</div>
+        </div>
+        <div class="pile-label">Discard</div>
+      </div>
+    </div>
+
+    <!-- Action Log -->
+    <div id="action-log-wrapper">
+      <div id="action-log"></div>
+    </div>
+
+    <!-- Player Hand -->
+    <div id="player-area">
+      <div id="player-info-bar">
+        <span id="player-name-display">You</span>
+        <span id="turn-indicator" class="turn-badge hidden">YOUR TURN</span>
+        <div id="action-buttons">
+          <button class="btn btn-success" id="btn-go-out" onclick="goOut()" style="display:none">GO OUT ✓</button>
+          <button class="btn btn-warning" id="btn-sort-hand" onclick="sortHand()">Sort Hand</button>
+        </div>
+      </div>
+      <div id="player-hand" class="hand-container"></div>
+    </div>
+
+  </div>
+
+  <!-- SCREEN 7: ROUND RESULTS -->
+  <div id="screen-round-results" class="screen">
+    <div class="results-content">
+      <h2 class="screen-title" id="round-result-title">Round Over!</h2>
+      <div id="round-scores-table"></div>
+      <div id="round-result-next-info"></div>
+      <button class="btn btn-primary" id="btn-next-round" onclick="nextRound()" style="display:none">NEXT ROUND →</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 8: GAME OVER -->
+  <div id="screen-game-over" class="screen">
+    <div class="gameover-content">
+      <div class="trophy">🏆</div>
+      <h2 id="winner-name" class="winner-title">Player Wins!</h2>
+      <p class="winner-sub">Congratulations!</p>
+      <div id="final-scores-table"></div>
+      <button class="btn btn-primary" onclick="showScreen('screen-main-menu')">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 9: RULES -->
+  <div id="screen-rules" class="screen">
+    <div class="rules-content">
+      <h2 class="screen-title">How to Play Five Crowns</h2>
+      <div class="rules-body">
+        <div class="rule-section">
+          <h3>🎯 Objective</h3>
+          <p>Have the <strong>lowest score</strong> after all 11 rounds. Form your entire hand into <strong>books</strong> and/or <strong>runs</strong> to go out and score zero!</p>
+        </div>
+        <div class="rule-section">
+          <h3>🃏 The Deck</h3>
+          <p>Two 58-card decks combined. Five suits: <strong>★ Stars, ♥ Hearts, ♣ Clubs, ♠ Spades, ♦ Diamonds</strong>. Cards 3–10, Jack (11), Queen (12), King (13), plus 3 Jokers per deck.</p>
+        </div>
+        <div class="rule-section">
+          <h3>🔄 Rounds & Wild Cards</h3>
+          <p>11 rounds total. Round 1 starts with 3 cards each, and each round you get one more card. <strong>The wild card rotates every round</strong> — in Round 1, 3s are wild; Round 2, 4s are wild… up to Kings in Round 11. Jokers are always wild.</p>
+        </div>
+        <div class="rule-section">
+          <h3>📚 Books & Runs</h3>
+          <p><strong>Book:</strong> 3 or more cards of the same value (any suits). Example: 7★ 7♥ 7♣<br/>
+          <strong>Run:</strong> 3 or more consecutive cards in the same suit. Example: 5♥ 6♥ 7♥<br/>
+          Wild cards (Jokers + round wilds) can substitute for any card.</p>
+        </div>
+        <div class="rule-section">
+          <h3>▶️ Your Turn</h3>
+          <p>1. Draw the top card from the <strong>draw pile</strong> or take the <strong>top discard</strong>.<br/>
+          2. Rearrange your hand to form books/runs.<br/>
+          3. Discard one card to end your turn.</p>
+        </div>
+        <div class="rule-section">
+          <h3>🚪 Going Out</h3>
+          <p>When your entire hand can form books/runs (with one card left to discard), click <strong>GO OUT</strong>. All other players get <strong>one final turn</strong>, then everyone scores their leftover cards.</p>
+        </div>
+        <div class="rule-section">
+          <h3>💯 Scoring</h3>
+          <p>Cards left in hand count against you: <strong>Number cards = face value</strong>, Jacks = 11, Queens = 12, Kings = 13, Wild cards (current round) = 20, Jokers = 50. <strong>Lowest total after 11 rounds wins!</strong></p>
+        </div>
+        <div class="rule-section">
+          <h3>🃏 Card Highlighting in This Game</h3>
+          <p><span class="legend-wild">Wild cards glow gold</span>. <span class="legend-book">Possible books pulse green</span>. Click cards to select them, then click the discard pile to discard. Use "GO OUT" when your hand is fully arranged.</p>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="showScreen('screen-main-menu')">← Back to Menu</button>
+    </div>
+  </div>
+
+  <!-- SCOREBOARD OVERLAY -->
+  <div id="scoreboard-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h3>📊 Scoreboard</h3>
+      <div id="scoreboard-content"></div>
+      <button class="btn btn-ghost" onclick="toggleScoreboard()">Close</button>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- GO OUT MODAL -->
+  <div id="goout-modal" class="overlay hidden">
+    <div class="overlay-box">
+      <h3>🚪 Go Out?</h3>
+      <p>Lay down all your books and runs, then discard your last card. Everyone else gets one more turn!</p>
+      <div id="goout-hand-preview"></div>
+      <button class="btn btn-success" onclick="confirmGoOut()">Yes, GO OUT!</button>
+      <button class="btn btn-ghost" onclick="cancelGoOut()">Cancel</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="js/deck.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
