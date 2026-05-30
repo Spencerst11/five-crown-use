@@ -359,34 +359,66 @@ const UI = (() => {
     });
   }
 
-  // ── OPPONENTS ────────────────────────────────────────────
+  // ── OPPONENTS — Circular card-table layout ───────────────
+  // Opponents sit around the top arc so everyone looks seated at a table.
   function renderOpponents(players, localPlayerId, currentTurnId) {
     const area = document.getElementById('opponents-area');
     area.innerHTML = '';
-    players.forEach(p => {
-      if (p.id === localPlayerId) return;
+
+    const opponents = players.filter(p => p.id !== localPlayerId);
+    const count = opponents.length;
+    if (count === 0) { area.style.minHeight = '0'; area.style.height = '0'; return; }
+
+    const areaW = area.offsetWidth || window.innerWidth;
+    const rx = Math.min(areaW * 0.43, 300);
+    const ry = Math.min(rx * 0.5, 120);
+    const cx = areaW / 2;
+    const cy = ry + 14;
+    area.style.height = (cy + 82) + 'px';
+
+    // Spread across top arc 205°→335° (top semicircle, left to right)
+    opponents.forEach((p, i) => {
+      const angle = count === 1 ? 270 : 205 + (i / (count - 1)) * 130;
+      const rad = (angle * Math.PI) / 180;
+      const x = cx + rx * Math.cos(rad);
+      const y = cy + ry * Math.sin(rad);
+
       const zone = document.createElement('div');
       zone.className = 'opponent-zone';
       if (p.id === currentTurnId) zone.classList.add('active-turn');
-      if (p.wentOut) zone.classList.add('going-out');
+      if (p.wentOut)              zone.classList.add('going-out');
+      if (p.disconnected)         zone.classList.add('disconnected');
+      zone.style.left = x + 'px';
+      zone.style.top  = y + 'px';
 
-      const avEl = renderAvatarEl(p.avatar, 34);
-      if (!avatarContent(p.avatar)) avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+      const avEl = renderAvatarEl(p.avatar, 38);
+      if (!avatarContent(p.avatar))
+        avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
       const cardBacks = Math.min(p.handCount, 8);
       let backsHtml = '';
-      for (let i = 0; i < cardBacks; i++) backsHtml += `<div class="opp-card-mini">👑</div>`;
+      for (let b = 0; b < cardBacks; b++) backsHtml += '<div class="opp-card-mini">👑</div>';
 
       const info = document.createElement('div');
       info.className = 'opp-info';
-      info.innerHTML = `
-        <div class="opp-name">${escHtml(p.name)}${p.id===currentTurnId?' 🎯':''}${p.wentOut?' ✅':''}</div>
-        <div class="opp-cards">${p.handCount} card${p.handCount!==1?'s':''} · ${p.score}pts</div>
-        <div class="opp-card-backs">${backsHtml}</div>`;
+      info.innerHTML =
+        '<div class="opp-name">' + escHtml(p.name) +
+        (p.id===currentTurnId?' 🎯':'') + (p.wentOut?' ✅':'') + '</div>' +
+        '<div class="opp-cards">' + p.handCount + ' card' + (p.handCount!==1?'s':'') +
+        ' · ' + p.score + 'pts</div>' +
+        '<div class="opp-card-backs">' + backsHtml + '</div>';
+
       zone.appendChild(avEl);
       zone.appendChild(info);
       area.appendChild(zone);
     });
+
+    // Glow the you-zone too when it is the local player's turn
+    const youZone = document.getElementById('you-zone');
+    if (youZone) {
+      const localP = players.find(p => p.id === localPlayerId);
+      youZone.classList.toggle('active-turn', localP && localP.id === currentTurnId);
+    }
   }
 
   // ── LOBBY ────────────────────────────────────────────────
@@ -492,7 +524,7 @@ const UI = (() => {
       cardEl.style.setProperty('--ey', `${ey}px`);
       cardEl.style.setProperty('--sr', '0deg');
       cardEl.style.setProperty('--er', `${rotation}deg`);
-      cardEl.style.setProperty('--deal-dur', '250ms');
+      cardEl.style.setProperty('--deal-dur', '450ms'); // medium-speed spin
       cardEl.style.setProperty('--deal-delay', `${i * cardDelay}ms`);
       cardEl.style.left = '0'; cardEl.style.top = '0';
       overlay.appendChild(cardEl);
@@ -519,6 +551,7 @@ const UI = (() => {
   }
 
   // ── ROUND RESULTS ────────────────────────────────────────
+  // Shows just the running TOTAL score for each player after the round.
   function renderRoundResults(results, round, isGameOver, isHost) {
     document.getElementById('round-result-title').textContent = isGameOver ? '🏆 Game Over!' : `Round ${round} Complete!`;
     const table = document.getElementById('round-scores-table');
@@ -526,20 +559,38 @@ const UI = (() => {
     const sorted = [...results].sort((a, b) => a.totalScore - b.totalScore);
     const t = document.createElement('table');
     t.className = 'round-score-table';
-    t.innerHTML = `<tr><th>#</th><th>Player</th><th>This Round</th><th>Total</th></tr>`;
+    t.innerHTML = `<tr><th>#</th><th>Player</th><th>Total Score</th></tr>`;
     const localId = Network.getLocalPlayerId();
     sorted.forEach((r, i) => {
       const tr = document.createElement('tr');
-      if (r.roundScore === 0) tr.classList.add('went-out');
       if (r.playerId === localId) tr.classList.add('local-player');
-      tr.innerHTML = `<td>${i+1}</td><td>${escHtml(r.name)}${r.playerId===localId?' (you)':''}${r.roundScore===0?' ✅':''}</td><td class="score-delta">+${r.roundScore}</td><td class="score-total">${r.totalScore}</td>`;
+      // Mark current leader
+      if (i === 0) tr.classList.add('went-out');
+      tr.innerHTML = `<td>${i+1}</td><td>${escHtml(r.name)}${r.playerId===localId?' (you)':''}</td><td class="score-total">${r.totalScore}</td>`;
       t.appendChild(tr);
     });
     table.appendChild(t);
     document.getElementById('round-result-next-info').textContent = isGameOver ? '' : `Next: Round ${round+1} of 11`;
+
     const nextBtn = document.getElementById('btn-next-round');
-    nextBtn.style.display = isHost ? 'inline-block' : 'none';
-    nextBtn.textContent = isGameOver ? 'Back to Menu' : 'START NEXT ROUND →';
+    // Remove any previous waiting message
+    const oldWait = document.getElementById('waiting-host-msg-el');
+    if (oldWait) oldWait.remove();
+
+    if (isHost) {
+      nextBtn.style.display = 'inline-block';
+      nextBtn.textContent = isGameOver ? 'Back to Menu' : 'START NEXT ROUND →';
+    } else {
+      // Non-host players don't control the round flow — show a clear message
+      nextBtn.style.display = 'none';
+      if (!isGameOver) {
+        const wait = document.createElement('div');
+        wait.id = 'waiting-host-msg-el';
+        wait.className = 'waiting-host-msg';
+        wait.textContent = '⏳ Waiting for the host to start the next round…';
+        document.getElementById('round-result-next-info').after(wait);
+      }
+    }
   }
 
   // ── GAME OVER ────────────────────────────────────────────
@@ -567,27 +618,27 @@ const UI = (() => {
   }
 
   // ── SCOREBOARD ───────────────────────────────────────────
+  // Shows just each player's current TOTAL score, ranked.
   function renderScoreboard(players, round) {
     const localId = Network.getLocalPlayerId();
     const content = document.getElementById('scoreboard-content');
     const sorted = [...players].sort((a,b) => a.score-b.score);
     const t = document.createElement('table');
     t.className = 'scoreboard-table';
-    let headerRow = '<tr><th>Player</th>';
-    for (let r = 1; r <= round; r++) headerRow += `<th>R${r}</th>`;
-    headerRow += '<th>Total</th></tr>';
-    t.innerHTML = headerRow;
+    t.innerHTML = `<tr><th>#</th><th>Player</th><th>Total Score</th></tr>`;
     sorted.forEach((p,i) => {
       const tr = document.createElement('tr');
       if (i===0) tr.classList.add('leading-row');
       if (p.id===localId) tr.classList.add('local-row');
-      let cells = `<td>${escHtml(p.name)}</td>`;
-      for (let r = 0; r < round; r++) cells += `<td>${p.roundScores[r]!==undefined?p.roundScores[r]:'-'}</td>`;
-      cells += `<td><strong>${p.score}</strong></td>`;
-      tr.innerHTML = cells;
+      const rankIcon = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
+      tr.innerHTML = `<td>${rankIcon}</td><td>${escHtml(p.name)}${p.id===localId?' (you)':''}</td><td><strong>${p.score}</strong></td>`;
       t.appendChild(tr);
     });
     content.innerHTML = '';
+    const caption = document.createElement('div');
+    caption.style.cssText = 'font-size:.8rem;color:#7a8a9a;margin-bottom:.8rem;font-style:italic;';
+    caption.textContent = `After ${round - 1} of 11 round${round - 1 !== 1 ? 's' : ''} · lowest score wins`;
+    content.appendChild(caption);
     content.appendChild(t);
   }
 
