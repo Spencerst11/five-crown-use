@@ -37,7 +37,18 @@ body {
   overflow-x: hidden;
   /* Prevent iOS bounce / overscroll */
   overscroll-behavior: none;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ── UNIVERSAL TOUCH — kills 300ms delay on ALL tappable elements ── */
+a, button, input, select, textarea,
+.btn, .card, .pile, .menu-card, .avatar-opt, .color-opt,
+.lobby-player-row, .overlay-box, .picker-btn,
+[onclick], [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
 /* ── SCREENS ── */
@@ -106,7 +117,7 @@ body {
 .menu-content { position:relative; z-index:2; text-align:center; padding:2rem 1rem; max-width:900px; width:100%; }
 .screen-title { font-family:var(--font-display); font-size:clamp(1.5rem,5vw,2.8rem); color:var(--gold); letter-spacing:.1em; margin-bottom:2rem; }
 .menu-cards { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin-bottom:1.5rem; }
-.menu-card { background:rgba(255,255,255,.04); border:1px solid rgba(240,192,64,.2); border-radius:14px; padding:1.5rem 1.2rem; width:clamp(160px,30vw,220px); cursor:pointer; transition:all .2s ease; text-align:center; }
+.menu-card { background:rgba(255,255,255,.04); border:1px solid rgba(240,192,64,.2); border-radius:14px; padding:1.5rem 1.2rem; width:clamp(160px,30vw,220px); cursor:pointer; touch-action:manipulation; transition:all .2s ease; text-align:center; }
 .menu-card:hover, .menu-card:active { border-color:var(--gold); background:rgba(240,192,64,.08); transform:translateY(-3px); }
 .menu-card-icon { font-size:2.2rem; margin-bottom:.6rem; }
 .menu-card h3 { font-family:var(--font-heading); color:var(--gold); margin-bottom:.4rem; font-size:1rem; }
@@ -474,4 +485,154 @@ body {
 @media (-webkit-min-device-pixel-ratio:2), (min-resolution:192dpi) {
   .card { border-width:1px; }
   .card-back { border-width:1.5px; }
+}
+
+/* ============================================================
+   RECONNECTION STYLES (v4)
+   ============================================================ */
+
+/* ── REJOIN BANNER (on splash screen) ── */
+.rejoin-banner {
+  position: absolute;
+  top: max(env(safe-area-inset-top, 0px) + 1rem, 1rem);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(34,134,58,0.18);
+  border: 1px solid rgba(34,134,58,0.6);
+  border-radius: 14px;
+  padding: .7rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  max-width: 92vw;
+}
+.rejoin-banner-icon { font-size: 1.4rem; flex-shrink: 0; }
+.rejoin-banner-text { display: flex; flex-direction: column; gap: .1rem; flex: 1; min-width: 0; }
+.rejoin-banner-title {
+  font-family: var(--font-heading);
+  font-size: .78rem;
+  color: #4ade80;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.rejoin-banner-sub {
+  font-size: .72rem;
+  color: #6a9a7a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── RECONNECT SCREEN ── */
+#screen-reconnect {
+  background: radial-gradient(ellipse at center, #0e1a12 0%, #060a08 100%);
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+.reconnect-content {
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.reconnect-icon {
+  font-size: 4rem;
+  animation: rcPulse 2s ease-in-out infinite;
+}
+@keyframes rcPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .6; transform: scale(0.92); }
+}
+
+.reconnect-info {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(240,192,64,.15);
+  border-radius: 12px;
+  padding: .9rem 1.4rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.rc-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.rc-label {
+  font-family: var(--font-heading);
+  font-size: .75rem;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: #7a8a7a;
+}
+.rc-value {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  color: var(--gold);
+  letter-spacing: .1em;
+}
+.rc-status {
+  font-size: .9rem;
+  color: #a0c0a0;
+  font-style: italic;
+  min-height: 1.4em;
+}
+.rc-attempts {
+  font-size: .78rem;
+  color: #6a8a6a;
+  min-height: 1.2em;
+}
+
+/* Spinner */
+.reconnect-spinner {
+  width: 48px;
+  height: 48px;
+  position: relative;
+}
+.spinner-ring {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(240,192,64,.15);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.reconnect-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  width: 100%;
+}
+.rc-note {
+  font-size: .75rem;
+  color: #4a6a4a;
+  line-height: 1.55;
+  padding: 0 .5rem;
+}
+
+/* ── DISCONNECTED PLAYER in lobby ── */
+.lobby-player-row.disconnected {
+  opacity: .55;
+  border-color: rgba(239,68,68,.3);
+  background: rgba(239,68,68,.05);
+}
+.lobby-player-row.disconnected .player-badge {
+  color: #f87171;
+}
+
+/* ── DISCONNECTED OPPONENT zone ── */
+.opponent-zone.disconnected {
+  border-color: rgba(239,68,68,.4);
+  opacity: .6;
+}
+.opponent-zone.disconnected .opp-name::after {
+  content: ' 📡';
+  font-size: .7rem;
 }
