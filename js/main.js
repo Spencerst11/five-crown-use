@@ -69,24 +69,29 @@ function selectColorJoin(el, color) {
 }
 
 // ── ROOM CREATION ─────────────────────────────────────────────
-function createRoom() {
+async function createRoom() {
   const name = document.getElementById('create-name').value.trim();
   const maxPlayers = parseInt(document.getElementById('create-players').value);
   if (!name) { UI.showToast('Please enter your name.'); return; }
   showScreen('screen-lobby');
   document.getElementById('lobby-room-code').textContent = '…';
   document.getElementById('lobby-host-controls').style.display = 'none';
-  const code = Network.createRoom(name, maxPlayers, _createAvatar, {
+  const code = await Network.createRoom(name, maxPlayers, _createAvatar, {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: (msg) => UI.showToast(msg),
     onError: (err) => { UI.showToast('⚠️ ' + err, 4000); console.error(err); },
   });
+  if (!code) {
+    UI.showToast('Could not create the room. Please try again.', 4000);
+    showScreen('screen-main-menu');
+    return;
+  }
   document.getElementById('lobby-room-code').textContent = code;
   document.getElementById('lobby-host-controls').style.display = 'block';
 }
 
-function joinRoom() {
+async function joinRoom() {
   const name = document.getElementById('join-name').value.trim();
   const code = document.getElementById('join-code').value.trim().toUpperCase();
   if (!name) { UI.showToast('Please enter your name.'); return; }
@@ -94,7 +99,7 @@ function joinRoom() {
   showScreen('screen-lobby');
   document.getElementById('lobby-room-code').textContent = code;
   document.getElementById('lobby-host-controls').style.display = 'none';
-  Network.joinRoom(name, code, _joinAvatar, {
+  await Network.joinRoom(name, code, _joinAvatar, {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: (msg) => UI.showToast(msg),
@@ -112,12 +117,91 @@ function copyRoomCode() {
 function hostStartGame() { Network.hostStartGame(); }
 
 function leaveRoom() {
+  Network.clearSession();
   Network.destroy();
   _selectedCards.clear();
   _currentPublicState = null;
   _localHand = [];
   _exitGoOutMode();
+  _hideRejoinBanner();
   showScreen('screen-main-menu');
+}
+
+// ── REJOIN / AUTO-RECONNECT ──────────────────────────────────
+// The big mobile fix: when a player returns to the app (or refreshes),
+// we silently re-read the latest game state from the server.
+
+let _reconnecting = false;
+
+async function rejoinFromMenu() {
+  const session = Network.getSavedSession();
+  if (!session) { UI.showToast('No active game to rejoin.', 3000); return; }
+  _reconnecting = true;
+  UI.showToast('Reconnecting to your game…', 2500);
+  await Network.rejoinRoom({
+    onStateUpdate: handleStateUpdate,
+    onLobbyUpdate: handleLobbyUpdate,
+    onMessage: (msg) => UI.showToast(msg),
+    onError: (err) => { UI.showToast('⚠️ ' + err, 4000); _reconnecting = false; },
+  });
+  _reconnecting = false;
+}
+
+function _showRejoinBanner() {
+  const session = Network.getSavedSession();
+  const banner = document.getElementById('rejoin-banner');
+  if (!banner) return;
+  if (session) {
+    const label = document.getElementById('rejoin-room-label');
+    if (label) label.textContent = `Room ${session.roomCode} · ${session.name}`;
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+function _hideRejoinBanner() {
+  const banner = document.getElementById('rejoin-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+// Dismiss the rejoin banner and forget the saved session
+function giveUpRejoin() {
+  Network.clearSession();
+  _hideRejoinBanner();
+}
+
+// When the app comes back to the foreground, re-sync from the server.
+// This is what fixes "left for a few minutes and got disconnected."
+function _setupAutoReconnect() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const code = Network.getRoomCode();
+    const inGame = document.getElementById('screen-game').classList.contains('active') ||
+                   document.getElementById('screen-lobby').classList.contains('active');
+    if (code && inGame && !_reconnecting) {
+      // Force a fresh read from the server to catch up on anything missed
+      _reconnecting = true;
+      Network.rejoinRoom({
+        onStateUpdate: handleStateUpdate,
+        onLobbyUpdate: handleLobbyUpdate,
+        onMessage: () => {},
+        onError: () => {},
+      }).finally(() => { _reconnecting = false; });
+    } else if (!code) {
+      const session = Network.getSavedSession();
+      if (session && document.getElementById('screen-splash').classList.contains('active')) {
+        _showRejoinBanner();
+      }
+    }
+  });
+
+  // iOS restores tabs from cache — re-check session on pageshow
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+      const session = Network.getSavedSession();
+      if (session && !Network.getRoomCode()) _showRejoinBanner();
+    }
+  });
 }
 
 // ── LOBBY HANDLER ─────────────────────────────────────────────
@@ -557,5 +641,13 @@ window.addEventListener('load', () => {
   showScreen('screen-splash');
   _refreshAvatarPreview('create', _createAvatar);
   _refreshAvatarPreview('join',   _joinAvatar);
-  console.log('Five Crowns v5 loaded ♛');
+
+  // Set up the auto-reconnect handlers (the mobile backgrounding fix)
+  _setupAutoReconnect();
+
+  // If a saved session exists (e.g. the page was refreshed mid-game),
+  // offer a one-tap rejoin on the splash screen.
+  _showRejoinBanner();
+
+  console.log('Five Crowns v6 (Supabase) loaded ♛');
 });
