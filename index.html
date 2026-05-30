@@ -274,13 +274,13 @@
         </div>
       </div>
 
-      <!-- Go-Out Builder Controls (shown only in go-out mode) -->
-      <div id="goout-builder-controls" style="display:none">
-        <div id="goout-status-bar" class="goout-status-bar status-warn">Tap cards to assign them to groups</div>
-        <div class="goout-controls">
-          <button class="btn btn-small btn-primary" onclick="addGoOutGroup()">+ Add Group</button>
-          <button class="btn btn-small btn-success" onclick="submitGoOut()">SUBMIT GO OUT →</button>
-          <button class="btn btn-small btn-ghost" onclick="cancelGoOut()">Cancel</button>
+      <!-- Go-Out Builder Bar (shown only when player clicks GO OUT) -->
+      <div id="goout-builder-bar" style="display:none">
+        <div id="goout-status-bar" class="goout-status-bar status-warn">Tap each card to assign it to a Group or mark as Discard</div>
+        <div class="goout-controls-row">
+          <button class="btn btn-small btn-secondary" onclick="addGoOutGroup()">＋ New Group</button>
+          <button class="btn btn-small btn-success" onclick="submitGoOut()">✓ SUBMIT GO OUT</button>
+          <button class="btn btn-small btn-ghost" onclick="cancelGoOut()">✕ Cancel</button>
         </div>
       </div>
 
