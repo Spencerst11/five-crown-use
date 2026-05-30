@@ -1,34 +1,35 @@
 // ============================================================
-// game.js — Five Crowns Game State & Logic
+// game.js — Five Crowns Game State & Logic (v2)
 // ============================================================
 
 const Game = (() => {
 
-  // ── STATE ────────────────────────────────────────────────
   let state = null;
 
-  function fresh(playerIds, playerNames, hostId) {
+  function fresh(playerIds, playerNames, hostId, playerAvatars) {
     return {
-      phase: 'lobby',       // lobby | draw | discard | going-out | round-end | game-over
-      round: 1,             // 1–11
+      phase: 'lobby',
+      round: 1,
       dealerIdx: 0,
       turnIdx: 0,
       players: playerIds.map((id, i) => ({
         id,
         name: playerNames[i],
+        avatar: (playerAvatars && playerAvatars[i]) || { animal: 'none', color: 'gold' },
         hand: [],
         score: 0,
-        roundScores: [],  // per-round delta
+        roundScores: [],
         wentOut: false,
         lastRoundMeld: null,
+        revealedMelds: null,  // shown on table after going out
       })),
       drawPile: [],
       discardPile: [],
       hostId,
-      goingOutPlayerId: null,   // who triggered going-out
-      finalTurnsLeft: 0,        // countdown for last-turn phase
-      drawnThisTurn: false,     // has current player drawn yet?
-      roundWinner: null,        // who went out this round
+      goingOutPlayerId: null,
+      finalTurnsLeft: 0,
+      drawnThisTurn: false,
+      roundWinner: null,
     };
   }
 
@@ -37,17 +38,14 @@ const Game = (() => {
 
   // ── ROUND SETUP ──────────────────────────────────────────
   function dealRound(s) {
-    const handSize = s.round + 2; // round 1 → 3 cards, round 11 → 13
+    const handSize = s.round + 2;
     const deck = shuffleDeck(buildDoubleDeck());
-
-    // Reset per-round state
-    s.players.forEach(p => { p.hand = []; p.wentOut = false; p.lastRoundMeld = null; });
+    s.players.forEach(p => { p.hand = []; p.wentOut = false; p.lastRoundMeld = null; p.revealedMelds = null; });
     s.goingOutPlayerId = null;
     s.finalTurnsLeft = 0;
     s.drawnThisTurn = false;
     s.roundWinner = null;
 
-    // Deal hand-size cards to each player, starting left of dealer
     const numPlayers = s.players.length;
     for (let i = 0; i < handSize; i++) {
       for (let j = 0; j < numPlayers; j++) {
@@ -56,11 +54,8 @@ const Game = (() => {
       }
     }
 
-    // Remaining cards = draw pile, flip one to start discard
     s.drawPile = deck;
     s.discardPile = [s.drawPile.pop()];
-
-    // First player to left of dealer goes first
     s.turnIdx = (s.dealerIdx + 1) % numPlayers;
     s.phase = 'draw';
   }
@@ -79,7 +74,7 @@ const Game = (() => {
     p.hand.push(card);
     s.drawnThisTurn = true;
     s.phase = 'discard';
-    return { ok: true, card };
+    return { ok: true, card, action: 'draw-deck' };
   }
 
   function drawFromDiscard(s, playerId) {
@@ -93,7 +88,7 @@ const Game = (() => {
     p.hand.push(card);
     s.drawnThisTurn = true;
     s.phase = 'discard';
-    return { ok: true, card };
+    return { ok: true, card, action: 'draw-discard' };
   }
 
   function discardCard(s, playerId, cardId) {
@@ -107,8 +102,6 @@ const Game = (() => {
 
     const [card] = p.hand.splice(cardIdx, 1);
     s.discardPile.push(card);
-
-    // Advance turn
     return advanceTurn(s, playerId);
   }
 
@@ -118,11 +111,9 @@ const Game = (() => {
     if (!isPlayerTurn(s, playerId)) return { ok: false, err: 'Not your turn' };
     if (s.phase !== 'discard') return { ok: false, err: 'Must draw first' };
 
-    // Validate: can the hand meld (minus one discard)?
     const meldResult = tryMeld(p.hand, s.round);
     if (!meldResult.canGoOut) return { ok: false, err: 'Hand cannot be fully melded' };
 
-    // Remove the auto-discard from hand
     const discardCard = meldResult.discard;
     const cardIdx = p.hand.findIndex(c => c.id === discardCard.id);
     p.hand.splice(cardIdx, 1);
@@ -130,15 +121,15 @@ const Game = (() => {
 
     p.wentOut = true;
     p.lastRoundMeld = meldResult.melds;
+    // Store revealed melds so all players can see them
+    p.revealedMelds = meldResult.melds;
+
     s.goingOutPlayerId = playerId;
     s.roundWinner = playerId;
     s.phase = 'going-out';
 
-    // Everyone else gets one more turn
     const numPlayers = s.players.length;
     s.finalTurnsLeft = numPlayers - 1;
-
-    // Move to next player
     s.turnIdx = (s.turnIdx + 1) % numPlayers;
     s.drawnThisTurn = false;
 
@@ -146,19 +137,15 @@ const Game = (() => {
       return endRound(s);
     }
 
-    return { ok: true, action: 'going-out', melds: meldResult.melds, discardCard };
+    return { ok: true, action: 'going-out', melds: meldResult.melds, discardCard, playerName: p.name };
   }
 
   function advanceTurn(s, playerId) {
     const numPlayers = s.players.length;
-
     if (s.phase === 'going-out') {
       s.finalTurnsLeft--;
-      if (s.finalTurnsLeft <= 0) {
-        return endRound(s);
-      }
+      if (s.finalTurnsLeft <= 0) return endRound(s);
     }
-
     s.turnIdx = (s.turnIdx + 1) % numPlayers;
     s.drawnThisTurn = false;
     s.phase = s.phase === 'going-out' ? 'going-out' : 'draw';
@@ -168,26 +155,18 @@ const Game = (() => {
   // ── ROUND END ────────────────────────────────────────────
   function endRound(s) {
     s.phase = 'round-end';
-
-    // Score each player's remaining hand
     const results = s.players.map(p => {
-      // If they went out (or successfully melded in last turn), score = 0 for their melds
-      // Otherwise count all cards in hand
       let roundScore = 0;
       if (p.wentOut) {
         roundScore = 0;
       } else {
-        // Try to meld what they can and score the rest
         const meldResult = tryMeld(p.hand, s.round);
         if (meldResult.canGoOut) {
-          // They could have gone out — score 0
           roundScore = 0;
           p.lastRoundMeld = meldResult.melds;
         } else {
-          // Score all remaining cards
           let leftover = p.hand;
           if (meldResult.melds.length > 0) {
-            // Credit what they could meld
             const melded = meldResult.melds.flat();
             leftover = p.hand.filter(c => !melded.some(m => m.id === c.id));
           }
@@ -199,7 +178,6 @@ const Game = (() => {
       return { playerId: p.id, name: p.name, roundScore, totalScore: p.score };
     });
 
-    // Check game over (11 rounds)
     if (s.round >= 11) {
       s.phase = 'game-over';
       const winner = s.players.reduce((a, b) => a.score <= b.score ? a : b);
@@ -226,20 +204,11 @@ const Game = (() => {
     s.discardPile = [top];
   }
 
-  function getPlayer(s, id) {
-    return s.players.find(p => p.id === id) || null;
-  }
-
-  function isPlayerTurn(s, id) {
-    return s.players[s.turnIdx]?.id === id;
-  }
-
-  function currentTurnPlayerId(s) {
-    return s.players[s.turnIdx]?.id || null;
-  }
+  function getPlayer(s, id) { return s.players.find(p => p.id === id) || null; }
+  function isPlayerTurn(s, id) { return s.players[s.turnIdx]?.id === id; }
+  function currentTurnPlayerId(s) { return s.players[s.turnIdx]?.id || null; }
 
   function getPublicState(s, forPlayerId) {
-    // Return state safe to send to a specific player
     return {
       phase: s.phase,
       round: s.round,
@@ -255,30 +224,21 @@ const Game = (() => {
       players: s.players.map(p => ({
         id: p.id,
         name: p.name,
+        avatar: p.avatar,
         handCount: p.hand.length,
         score: p.score,
         roundScores: p.roundScores,
         wentOut: p.wentOut,
-        // Only send actual hand to the owner
+        // Send revealed melds to everyone so they can see gone-out player's cards
+        revealedMelds: p.revealedMelds || null,
         hand: p.id === forPlayerId ? p.hand : null,
       })),
     };
   }
 
   return {
-    fresh,
-    get,
-    set,
-    dealRound,
-    drawFromDeck,
-    drawFromDiscard,
-    discardCard,
-    goOut,
-    nextRound,
-    endRound,
-    getPlayer,
-    isPlayerTurn,
-    currentTurnPlayerId,
-    getPublicState,
+    fresh, get, set, dealRound,
+    drawFromDeck, drawFromDiscard, discardCard, goOut, nextRound, endRound,
+    getPlayer, isPlayerTurn, currentTurnPlayerId, getPublicState,
   };
 })();
