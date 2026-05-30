@@ -1,5 +1,10 @@
 // ============================================================
-// game.js — Five Crowns Game State & Logic (v2)
+// game.js — Five Crowns Game State & Logic (v3)
+// Changes:
+//   - goOut() now accepts player-chosen melds + discard card
+//   - validateGoOut() checks chosen cards without committing
+//   - Final-turn players draw then discard; remaining hand scored
+//   - phase 'going-out' still means final turns for others
 // ============================================================
 
 const Game = (() => {
@@ -21,7 +26,7 @@ const Game = (() => {
         roundScores: [],
         wentOut: false,
         lastRoundMeld: null,
-        revealedMelds: null,  // shown on table after going out
+        revealedMelds: null,
       })),
       drawPile: [],
       discardPile: [],
@@ -40,7 +45,10 @@ const Game = (() => {
   function dealRound(s) {
     const handSize = s.round + 2;
     const deck = shuffleDeck(buildDoubleDeck());
-    s.players.forEach(p => { p.hand = []; p.wentOut = false; p.lastRoundMeld = null; p.revealedMelds = null; });
+    s.players.forEach(p => {
+      p.hand = []; p.wentOut = false;
+      p.lastRoundMeld = null; p.revealedMelds = null;
+    });
     s.goingOutPlayerId = null;
     s.finalTurnsLeft = 0;
     s.drawnThisTurn = false;
@@ -53,7 +61,6 @@ const Game = (() => {
         s.players[pIdx].hand.push(deck.pop());
       }
     }
-
     s.drawPile = deck;
     s.discardPile = [s.drawPile.pop()];
     s.turnIdx = (s.dealerIdx + 1) % numPlayers;
@@ -66,14 +73,16 @@ const Game = (() => {
     const p = getPlayer(s, playerId);
     if (!p) return { ok: false, err: 'Player not found' };
     if (!isPlayerTurn(s, playerId)) return { ok: false, err: 'Not your turn' };
-    if (s.phase !== 'draw') return { ok: false, err: 'Cannot draw now' };
+    if (s.phase !== 'draw' && s.phase !== 'going-out') return { ok: false, err: 'Cannot draw now' };
+    if (s.drawnThisTurn) return { ok: false, err: 'Already drew this turn' };
     if (s.drawPile.length === 0) reshuffleDiscard(s);
     if (s.drawPile.length === 0) return { ok: false, err: 'Draw pile empty!' };
 
     const card = s.drawPile.pop();
     p.hand.push(card);
     s.drawnThisTurn = true;
-    s.phase = 'discard';
+    // Stay in same phase (going-out stays going-out, draw→discard)
+    if (s.phase === 'draw') s.phase = 'discard';
     return { ok: true, card, action: 'draw-deck' };
   }
 
@@ -81,13 +90,14 @@ const Game = (() => {
     const p = getPlayer(s, playerId);
     if (!p) return { ok: false, err: 'Player not found' };
     if (!isPlayerTurn(s, playerId)) return { ok: false, err: 'Not your turn' };
-    if (s.phase !== 'draw') return { ok: false, err: 'Cannot draw now' };
+    if (s.phase !== 'draw' && s.phase !== 'going-out') return { ok: false, err: 'Cannot draw now' };
+    if (s.drawnThisTurn) return { ok: false, err: 'Already drew this turn' };
     if (s.discardPile.length === 0) return { ok: false, err: 'Discard pile empty' };
 
     const card = s.discardPile.pop();
     p.hand.push(card);
     s.drawnThisTurn = true;
-    s.phase = 'discard';
+    if (s.phase === 'draw') s.phase = 'discard';
     return { ok: true, card, action: 'draw-discard' };
   }
 
@@ -96,6 +106,7 @@ const Game = (() => {
     if (!p) return { ok: false, err: 'Player not found' };
     if (!isPlayerTurn(s, playerId)) return { ok: false, err: 'Not your turn' };
     if (s.phase !== 'discard' && s.phase !== 'going-out') return { ok: false, err: 'Cannot discard now' };
+    if (s.phase === 'going-out' && !s.drawnThisTurn) return { ok: false, err: 'Must draw first on your final turn' };
 
     const cardIdx = p.hand.findIndex(c => c.id === cardId);
     if (cardIdx === -1) return { ok: false, err: 'Card not in hand' };
@@ -105,24 +116,60 @@ const Game = (() => {
     return advanceTurn(s, playerId);
   }
 
-  function goOut(s, playerId) {
+  // ── VALIDATE GO-OUT (client-side check, no state change) ─
+  // Called before the modal commits — returns { ok, melds, discard, err }
+  function validateGoOut(hand, discardCardId, meldGroups, round) {
+    // discardCardId: the card the player chose to discard
+    // meldGroups: array of arrays of card IDs the player grouped as melds
+    // Returns whether the arrangement is valid
+
+    const discardCard = hand.find(c => c.id === discardCardId);
+    if (!discardCard) return { ok: false, err: 'Discard card not found in hand' };
+
+    // Build melds from IDs
+    const melds = meldGroups.map(group =>
+      group.map(id => hand.find(c => c.id === id)).filter(Boolean)
+    );
+
+    // Check all hand cards accounted for (melds + discard = full hand)
+    const meldCardIds = new Set(melds.flat().map(c => c.id));
+    if (meldCardIds.has(discardCardId)) return { ok: false, err: 'Discard card cannot be in a meld' };
+
+    const allUsed = new Set([...meldCardIds, discardCardId]);
+    for (const c of hand) {
+      if (!allUsed.has(c.id)) return { ok: false, err: 'All cards must be in a meld or discarded' };
+    }
+
+    // Validate each meld group
+    for (let i = 0; i < melds.length; i++) {
+      const meld = melds[i];
+      if (meld.length < 3) return { ok: false, err: `Group ${i + 1} needs at least 3 cards` };
+      if (!isValidMeld(meld, round)) {
+        return { ok: false, err: `Group ${i + 1} is not a valid book or run` };
+      }
+    }
+
+    return { ok: true, melds, discard: discardCard };
+  }
+
+  // ── GO OUT (commits player-chosen arrangement) ───────────
+  function goOut(s, playerId, discardCardId, meldGroups) {
     const p = getPlayer(s, playerId);
     if (!p) return { ok: false, err: 'Player not found' };
     if (!isPlayerTurn(s, playerId)) return { ok: false, err: 'Not your turn' };
     if (s.phase !== 'discard') return { ok: false, err: 'Must draw first' };
 
-    const meldResult = tryMeld(p.hand, s.round);
-    if (!meldResult.canGoOut) return { ok: false, err: 'Hand cannot be fully melded' };
+    const validation = validateGoOut(p.hand, discardCardId, meldGroups, s.round);
+    if (!validation.ok) return { ok: false, err: validation.err };
 
-    const discardCard = meldResult.discard;
-    const cardIdx = p.hand.findIndex(c => c.id === discardCard.id);
+    // Commit: remove discard from hand, push to discard pile
+    const cardIdx = p.hand.findIndex(c => c.id === discardCardId);
     p.hand.splice(cardIdx, 1);
-    s.discardPile.push(discardCard);
+    s.discardPile.push(validation.discard);
 
     p.wentOut = true;
-    p.lastRoundMeld = meldResult.melds;
-    // Store revealed melds so all players can see them
-    p.revealedMelds = meldResult.melds;
+    p.lastRoundMeld = validation.melds;
+    p.revealedMelds = validation.melds;
 
     s.goingOutPlayerId = playerId;
     s.roundWinner = playerId;
@@ -133,11 +180,9 @@ const Game = (() => {
     s.turnIdx = (s.turnIdx + 1) % numPlayers;
     s.drawnThisTurn = false;
 
-    if (s.finalTurnsLeft === 0) {
-      return endRound(s);
-    }
+    if (s.finalTurnsLeft === 0) return endRound(s);
 
-    return { ok: true, action: 'going-out', melds: meldResult.melds, discardCard, playerName: p.name };
+    return { ok: true, action: 'going-out', melds: validation.melds, discardCard: validation.discard, playerName: p.name };
   }
 
   function advanceTurn(s, playerId) {
@@ -148,6 +193,7 @@ const Game = (() => {
     }
     s.turnIdx = (s.turnIdx + 1) % numPlayers;
     s.drawnThisTurn = false;
+    // Remaining players in going-out phase still draw→discard
     s.phase = s.phase === 'going-out' ? 'going-out' : 'draw';
     return { ok: true, action: 'next-turn' };
   }
@@ -160,18 +206,8 @@ const Game = (() => {
       if (p.wentOut) {
         roundScore = 0;
       } else {
-        const meldResult = tryMeld(p.hand, s.round);
-        if (meldResult.canGoOut) {
-          roundScore = 0;
-          p.lastRoundMeld = meldResult.melds;
-        } else {
-          let leftover = p.hand;
-          if (meldResult.melds.length > 0) {
-            const melded = meldResult.melds.flat();
-            leftover = p.hand.filter(c => !melded.some(m => m.id === c.id));
-          }
-          roundScore = handScore(leftover, s.round);
-        }
+        // Score ALL remaining cards in hand (no auto-meld credit on final turn)
+        roundScore = handScore(p.hand, s.round);
       }
       p.score += roundScore;
       p.roundScores.push(roundScore);
@@ -184,11 +220,9 @@ const Game = (() => {
       s.winner = winner.id;
       return { ok: true, action: 'game-over', results, winner: winner.id, winnerName: winner.name };
     }
-
     return { ok: true, action: 'round-end', results };
   }
 
-  // ── NEXT ROUND ───────────────────────────────────────────
   function nextRound(s) {
     s.round++;
     s.dealerIdx = (s.dealerIdx + 1) % s.players.length;
@@ -229,7 +263,6 @@ const Game = (() => {
         score: p.score,
         roundScores: p.roundScores,
         wentOut: p.wentOut,
-        // Send revealed melds to everyone so they can see gone-out player's cards
         revealedMelds: p.revealedMelds || null,
         hand: p.id === forPlayerId ? p.hand : null,
       })),
@@ -238,7 +271,8 @@ const Game = (() => {
 
   return {
     fresh, get, set, dealRound,
-    drawFromDeck, drawFromDiscard, discardCard, goOut, nextRound, endRound,
+    drawFromDeck, drawFromDiscard, discardCard,
+    goOut, validateGoOut, nextRound, endRound,
     getPlayer, isPlayerTurn, currentTurnPlayerId, getPublicState,
   };
 })();
