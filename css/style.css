@@ -277,6 +277,11 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 #table-center{display:flex;justify-content:center;align-items:center;gap:clamp(1.5rem,6vw,4rem);padding:.3rem;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;width:max-content;max-width:90vw}
 /* On narrow phones opponents sit in a top row, so drop the piles to lower-center */
 @media(max-width:599px){#table-center{top:64%}}
+/* DESKTOP / TABLET: firmly center the piles in the table area */
+@media(min-width:600px){
+  #table-area{display:flex;align-items:center;justify-content:center}
+  #table-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0}
+}
 .pile{display:flex;flex-direction:column;align-items:center;gap:.3rem;cursor:pointer;transition:transform .15s;z-index:5}
 .pile:hover,.pile:active{transform:scale(1.05)}
 .pile-cards{position:relative;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
