@@ -150,14 +150,14 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .cards-tab-right{right:0;border-radius:10px 0 0 10px}
 .tab-label-vertical{
   font-family:var(--font-heading);
-  font-size:.6rem;
-  letter-spacing:.15em;
+  font-size:.62rem;
+  letter-spacing:.06em;
   color:var(--gold);
-  writing-mode:vertical-rl;
-  text-orientation:mixed;
   text-transform:uppercase;
   display:block;
-  line-height:1.4;
+  text-align:center;
+  line-height:1.25;
+  font-weight:700;
 }
 
 .side-panel{
