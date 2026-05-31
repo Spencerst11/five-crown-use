@@ -303,11 +303,23 @@ const Network = (() => {
     expectedPlayers = envelope.expectedPlayers || 4;
     _lobbyPlayers = envelope.lobbyPlayers || [];
 
-    // If host hasn't started, add us to the lobby
+    // ── CASE A: game already running — DON'T touch the lobby/gameState ──
+    // Just sync into the running game. Writing here could clobber gameState.
+    if (envelope.gameState) {
+      _lastVersionSeen = (typeof envelope.version === 'number') ? envelope.version : 0;
+      _saveSession(localPlayerId, playerName, localAvatar, roomCode, false);
+      _subscribe(roomCode);
+      _startHeartbeat();
+      Game.set(envelope.gameState);
+      const pub = Game.getPublicState(envelope.gameState, localPlayerId);
+      if (onStateUpdate) onStateUpdate(pub, { action: isRejoin ? 'rejoin' : 'sync' });
+      return;
+    }
+
+    // ── CASE B: still in lobby — add ourselves ──
     const existing = _lobbyPlayers.find(p => p.id === localPlayerId);
     if (!existing) {
-      // Is the lobby full? (only enforce before game start)
-      if (!envelope.gameState && _lobbyPlayers.length >= expectedPlayers) {
+      if (_lobbyPlayers.length >= expectedPlayers) {
         if (onError) onError('This room is full.');
         return;
       }
@@ -320,7 +332,7 @@ const Network = (() => {
       existing.disconnected = false;
     }
 
-    // Write our presence into the lobby
+    // Write our presence into the lobby (preserve gameState as null here)
     envelope.lobbyPlayers = _lobbyPlayers;
     envelope.version = (envelope.version || 0) + 1;
     _lastVersionSeen = envelope.version;
@@ -332,13 +344,6 @@ const Network = (() => {
 
     if (onLobbyUpdate) onLobbyUpdate([..._lobbyPlayers]);
     if (onMessage && !isRejoin) onMessage(`You joined room ${roomCode}.`);
-
-    // If a game is already running, drop straight into it
-    if (envelope.gameState) {
-      Game.set(envelope.gameState);
-      const pub = Game.getPublicState(envelope.gameState, localPlayerId);
-      if (onStateUpdate) onStateUpdate(pub, { action: isRejoin ? 'rejoin' : 'sync' });
-    }
   }
 
   // ── REJOIN (after closing app) ───────────────────────────
@@ -367,6 +372,35 @@ const Network = (() => {
       Game.set(gs);
       Game.dealRound(gs);
       _isStarted = true;
+
+      // Read the very latest version so our write is guaranteed to win
+      // (covers any last-second lobby joins that bumped the version).
+      try {
+        const latest = await _readRoom(roomCode);
+        if (latest && typeof latest.version === 'number' && latest.version > _lastVersionSeen) {
+          _lastVersionSeen = latest.version;
+        }
+        // Use the most current lobby list too, in case someone just joined
+        if (latest && Array.isArray(latest.lobbyPlayers) && latest.lobbyPlayers.length >= _lobbyPlayers.length) {
+          _lobbyPlayers = latest.lobbyPlayers;
+          // Rebuild the game with the full final roster
+          const ids = _lobbyPlayers.map(p => p.id);
+          const names = _lobbyPlayers.map(p => p.name);
+          const avs = _lobbyPlayers.map(p => p.avatar);
+          const gs2 = Game.fresh(ids, names, localPlayerId, avs);
+          Game.set(gs2);
+          Game.dealRound(gs2);
+          const ok2 = await _pushGameState(gs2, { action: 'round-start' });
+          if (!ok2) {
+            if (onError) onError('Could not start game — failed to save. Try again.');
+            if (btn) { btn.disabled = false; btn.textContent = 'START GAME'; }
+            return;
+          }
+          const pub2 = Game.getPublicState(gs2, localPlayerId);
+          if (onStateUpdate) onStateUpdate(pub2, { action: 'round-start' });
+          return;
+        }
+      } catch (e) { /* fall through to normal push */ }
 
       const ok = await _pushGameState(gs, { action: 'round-start' });
       if (!ok) {
