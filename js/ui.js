@@ -656,8 +656,21 @@ const UI = (() => {
     const paRect  = playerAreaEl.getBoundingClientRect();
     const taRect  = tableAreaEl.getBoundingClientRect();
 
-    const sx = dpRect.left + dpRect.width/2  - taRect.left - 24;
-    const sy = dpRect.top  + dpRect.height/2 - taRect.top  - 32;
+    // Start cards from the CENTER of the table. We prefer the live draw-pile
+    // position, but if it hasn't laid out yet (during the start transition it
+    // can read as ~0/off-screen-left), fall back to the table-area center so
+    // cards never fly in from off screen.
+    let startCenterX = dpRect.left + dpRect.width / 2 - taRect.left;
+    let startCenterY = dpRect.top  + dpRect.height / 2 - taRect.top;
+    const drawLooksValid = dpRect.width > 0 && dpRect.left >= taRect.left - 5 &&
+                           dpRect.left <= taRect.right;
+    if (!drawLooksValid) {
+      startCenterX = taRect.width / 2;
+      startCenterY = taRect.height / 2;
+    }
+
+    const sx = startCenterX - 24;
+    const sy = startCenterY - 32;
     const handW   = paRect.width;
     const ex_base = paRect.left - taRect.left;
     const ey      = paRect.top  - taRect.top + 8;
