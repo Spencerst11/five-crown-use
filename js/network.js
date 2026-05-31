@@ -41,6 +41,7 @@ const Network = (() => {
   let _pollTimer = null;      // fallback poll in case realtime misses
   let _heartbeatTimer = null; // marks this player present
   let _isStarted = false;
+  let _starting = false;  // true while host start is in progress
 
   // ── INIT SUPABASE CLIENT ─────────────────────────────────
   function _initClient() {
@@ -358,6 +359,8 @@ const Network = (() => {
   // ── HOST: START GAME ─────────────────────────────────────
   async function hostStartGame() {
     if (!isHost) return;
+    if (_starting) return;       // ignore double-taps
+    _starting = true;            // lock lobby button churn during start
 
     // Disable button immediately to prevent double-tap
     const btn = document.getElementById('start-game-btn');
@@ -392,6 +395,7 @@ const Network = (() => {
           Game.dealRound(gs2);
           const ok2 = await _pushGameState(gs2, { action: 'round-start' });
           if (!ok2) {
+            _starting = false;
             if (onError) onError('Could not start game — failed to save. Try again.');
             if (btn) { btn.disabled = false; btn.textContent = 'START GAME'; }
             return;
@@ -404,6 +408,7 @@ const Network = (() => {
 
       const ok = await _pushGameState(gs, { action: 'round-start' });
       if (!ok) {
+        _starting = false;
         if (onError) onError('Could not start game — failed to save to server. Check your Supabase table exists.');
         if (btn) { btn.disabled = false; btn.textContent = 'START GAME'; }
         return;
@@ -413,6 +418,7 @@ const Network = (() => {
       const pub = Game.getPublicState(gs, localPlayerId);
       if (onStateUpdate) onStateUpdate(pub, { action: 'round-start' });
     } catch (err) {
+      _starting = false;
       console.error('[hostStartGame] error:', err);
       if (onError) onError('Start game error: ' + err.message);
       if (btn) { btn.disabled = false; btn.textContent = 'START GAME'; }
@@ -504,11 +510,12 @@ const Network = (() => {
   function getIsHost()          { return isHost; }
   function getRoomCode()        { return roomCode; }
   function getExpectedPlayers() { return expectedPlayers; }
+  function getIsStarting()      { return _starting; }
 
   return {
     createRoom, joinRoom, rejoinRoom, hostStartGame, sendAction, destroy,
     getLobbyPlayers, getLocalPlayerId, getLocalPlayerName, getLocalAvatar,
-    getIsHost, getRoomCode, getExpectedPlayers,
+    getIsHost, getRoomCode, getExpectedPlayers, getIsStarting,
     getSavedSession, clearSession: _clearSession,
   };
 })();
