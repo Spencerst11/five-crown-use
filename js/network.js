@@ -103,6 +103,25 @@ const Network = (() => {
     return data ? data.state : null;
   }
 
+  // Detailed read that surfaces the real error message for diagnostics
+  async function _readRoomDetailed(code) {
+    try {
+      const { data, error } = await supabase
+        .from('game_rooms')
+        .select('state')
+        .eq('id', code)
+        .maybeSingle();
+      if (error) {
+        console.error('[readDetailed] error:', error);
+        return { error: error.message || 'unknown', state: null };
+      }
+      return { error: null, state: data ? data.state : null };
+    } catch (e) {
+      console.error('[readDetailed] exception:', e);
+      return { error: e.message || 'exception', state: null };
+    }
+  }
+
   async function _writeRoom(code, state) {
     _lastWriteAt = Date.now();
     const { error } = await supabase
@@ -155,10 +174,12 @@ const Network = (() => {
         }
       });
 
-    // Fallback polling every 3s (covers any missed realtime events,
-    // e.g. phone was asleep). Cheap for a family game.
+    // Fallback polling every 2s — this is the reliable workhorse that
+    // makes lobby joins and moves appear even if Realtime isn't enabled.
     clearInterval(_pollTimer);
-    _pollTimer = setInterval(_refreshFromServer, 3000);
+    _pollTimer = setInterval(_refreshFromServer, 2000);
+    // Also do an immediate read so we're current right away
+    _refreshFromServer();
   }
 
   async function _refreshFromServer() {
@@ -169,24 +190,33 @@ const Network = (() => {
 
   // Called whenever we get new room state (from realtime or poll)
   let _lastVersionSeen = -1;
+  let _lastLobbySignature = '';
   function _onRoomUpdate(envelope, fromPoll = false) {
     if (!envelope) return;
 
-    // Ignore older or duplicate versions
-    if (typeof envelope.version === 'number') {
-      if (envelope.version < _lastVersionSeen) return;
-      if (envelope.version === _lastVersionSeen && fromPoll) return;
-      _lastVersionSeen = envelope.version;
+    // ── LOBBY: always sync, regardless of version ──
+    // The lobby list must update whenever it changes, so players see
+    // each other join. We compare a signature to avoid redundant redraws.
+    const incomingLobby = envelope.lobbyPlayers || [];
+    const sig = incomingLobby.map(p => p.id + ':' + (p.connected ? 1 : 0)).join('|');
+    if (sig !== _lastLobbySignature) {
+      _lastLobbySignature = sig;
+      _lobbyPlayers = incomingLobby;
+      if (onLobbyUpdate) onLobbyUpdate([..._lobbyPlayers]);
+    } else {
+      // keep our local copy in sync even if we don't redraw
+      _lobbyPlayers = incomingLobby;
     }
 
-    // Update lobby list
-    _lobbyPlayers = envelope.lobbyPlayers || [];
-    if (onLobbyUpdate) onLobbyUpdate([..._lobbyPlayers]);
-
-    // If a game is in progress, push the state to the UI
+    // ── GAME STATE: gate on version to avoid flicker / stale overwrites ──
     if (envelope.gameState) {
-      // Make sure the local Game module has the authoritative state
-      // (so host logic + getPublicState work for everyone)
+      const v = (typeof envelope.version === 'number') ? envelope.version : 0;
+      // Skip clearly older game-state versions
+      if (v < _lastVersionSeen) return;
+      // Skip exact-duplicate game state from a poll (prevents re-animating)
+      if (v === _lastVersionSeen && fromPoll) return;
+      _lastVersionSeen = v;
+
       Game.set(envelope.gameState);
       const pub = Game.getPublicState(envelope.gameState, localPlayerId);
       const result = envelope.lastResult || { action: 'sync' };
@@ -258,10 +288,15 @@ const Network = (() => {
       ? savedPlayerId
       : ('guest-' + Math.random().toString(36).slice(2, 8));
 
-    // Read current room
-    const envelope = await _readRoom(roomCode);
+    // Read current room — with detailed diagnostics
+    const readResult = await _readRoomDetailed(roomCode);
+    if (readResult.error) {
+      if (onError) onError('Database error: ' + readResult.error + ' (Check Supabase RLS policy)');
+      return;
+    }
+    const envelope = readResult.state;
     if (!envelope) {
-      if (onError) onError('Room "' + roomCode + '" not found. Check the code.');
+      if (onError) onError('Room "' + roomCode + '" not found. Make sure the host created it and the code is exactly right.');
       return;
     }
 
