@@ -96,10 +96,10 @@ const Network = (() => {
   async function _readRoom(code) {
     const { data, error } = await supabase
       .from('game_rooms')
-      .select('state, updated_at')
+      .select('state')
       .eq('id', code)
       .maybeSingle();
-    if (error) { console.warn('[read] error', error); return null; }
+    if (error) { console.warn('[read] error', error.message); return null; }
     return data ? data.state : null;
   }
 
