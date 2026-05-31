@@ -377,10 +377,13 @@ const UI = (() => {
     if (hostControls && startBtn) {
       const localIsHost = players.some(p => p.id === localPlayerId && p.isHost);
       hostControls.style.display = localIsHost ? 'block' : 'none';
-      startBtn.disabled = filled < 2;
-      startBtn.textContent = filled < 2
-        ? 'Need at least 2 players'
-        : `START GAME (${filled} players)`;
+      // Don't touch the button while a start is in progress (avoids churn)
+      if (!Network.getIsStarting || !Network.getIsStarting()) {
+        startBtn.disabled = filled < 2;
+        startBtn.textContent = filled < 2
+          ? 'Need at least 2 players'
+          : `START GAME (${filled} players)`;
+      }
     }
   }
 
