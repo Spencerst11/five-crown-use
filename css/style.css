@@ -19,7 +19,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 /* ── SCREENS ── */
 .screen{display:none;width:100%;min-height:100dvh;position:relative}
 .screen.active{display:flex;flex-direction:column;align-items:center;justify-content:center}
-#screen-game.active{display:flex;flex-direction:column;justify-content:flex-start;height:100dvh;overflow:hidden;padding:0}
+#screen-game.active{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;height:100dvh;overflow:hidden;padding:0}
 #screen-round-results.active,#screen-game-over.active,#screen-rules.active{display:flex}
 
 /* ── SPLASH ── */
@@ -226,6 +226,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 #table-area{
   position:relative;
   flex:1;
+  width:100%;
   overflow:hidden;
   min-height:0;
 }
