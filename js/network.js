@@ -107,10 +107,10 @@ const Network = (() => {
     _lastWriteAt = Date.now();
     const { error } = await supabase
       .from('game_rooms')
-      .upsert({ id: code, state, updated_at: new Date().toISOString() });
+      .upsert({ id: code, state });
     if (error) {
-      console.warn('[write] error', error);
-      if (onError) onError('Failed to save game. Check connection.');
+      console.warn('[write] error', error.message, error.details, error.hint);
+      if (onError) onError('Failed to save: ' + error.message);
       return false;
     }
     return true;
@@ -318,32 +318,52 @@ const Network = (() => {
   // ── HOST: START GAME ─────────────────────────────────────
   async function hostStartGame() {
     if (!isHost) return;
-    const playerIds     = _lobbyPlayers.map(p => p.id);
-    const playerNames   = _lobbyPlayers.map(p => p.name);
-    const playerAvatars = _lobbyPlayers.map(p => p.avatar);
 
-    const gs = Game.fresh(playerIds, playerNames, localPlayerId, playerAvatars);
-    Game.set(gs);
-    Game.dealRound(gs);
-    _isStarted = true;
+    // Disable button immediately to prevent double-tap
+    const btn = document.getElementById('start-game-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
 
-    await _pushGameState(gs, { action: 'round-start' });
+    try {
+      const playerIds     = _lobbyPlayers.map(p => p.id);
+      const playerNames   = _lobbyPlayers.map(p => p.name);
+      const playerAvatars = _lobbyPlayers.map(p => p.avatar);
 
-    // Update own UI immediately
-    const pub = Game.getPublicState(gs, localPlayerId);
-    if (onStateUpdate) onStateUpdate(pub, { action: 'round-start' });
+      const gs = Game.fresh(playerIds, playerNames, localPlayerId, playerAvatars);
+      Game.set(gs);
+      Game.dealRound(gs);
+      _isStarted = true;
+
+      const ok = await _pushGameState(gs, { action: 'round-start' });
+      if (!ok) {
+        if (onError) onError('Could not start game — failed to save to server. Check your Supabase table exists.');
+        if (btn) { btn.disabled = false; btn.textContent = 'START GAME'; }
+        return;
+      }
+
+      // Update host UI immediately
+      const pub = Game.getPublicState(gs, localPlayerId);
+      if (onStateUpdate) onStateUpdate(pub, { action: 'round-start' });
+    } catch (err) {
+      console.error('[hostStartGame] error:', err);
+      if (onError) onError('Start game error: ' + err.message);
+      if (btn) { btn.disabled = false; btn.textContent = 'START GAME'; }
+    }
   }
 
   // Write the authoritative game state to the server
   async function _pushGameState(gs, result) {
-    const envelope = (await _readRoom(roomCode)) || _freshRoomEnvelope();
-    envelope.gameState = gs;
-    envelope.lastResult = result || null;
-    envelope.lobbyPlayers = _lobbyPlayers;
-    envelope.startedAt = envelope.startedAt || new Date().toISOString();
-    envelope.version = (envelope.version || 0) + 1;
+    // Build envelope from scratch rather than re-reading — avoids stale data race
+    const envelope = {
+      hostId: localPlayerId,
+      lobbyPlayers: _lobbyPlayers,
+      gameState: gs,
+      lastResult: result || null,
+      startedAt: new Date().toISOString(),
+      expectedPlayers: expectedPlayers,
+      version: (_lastVersionSeen || 0) + 1,
+    };
     _lastVersionSeen = envelope.version;
-    await _writeRoom(roomCode, envelope);
+    return await _writeRoom(roomCode, envelope);
   }
 
   // ── SEND ACTION ──────────────────────────────────────────
