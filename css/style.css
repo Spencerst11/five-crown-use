@@ -235,8 +235,12 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 /* narrow-phone fallback: simple wrapped row across the top */
 #opponents-area.opponents-toprow{
   display:flex;flex-wrap:wrap;justify-content:center;align-content:flex-start;
-  gap:.4rem;padding:.4rem .3rem 0;inset:auto 0 auto 0;top:0;
+  gap:.4rem;padding:.4rem .3rem 0;
+  left:0;right:0;top:0;bottom:auto;
+  max-height:42%;overflow:hidden;
+  pointer-events:none;
 }
+#opponents-area.opponents-toprow .opponent-zone{pointer-events:all}
 .opponent-zone{
   position:absolute;
   pointer-events:all;
@@ -269,7 +273,9 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .opp-card-mini{width:16px;height:24px;background:linear-gradient(135deg,#1a0a2e,#2a1040);border:1px solid rgba(240,192,64,.4);border-radius:2px}
 
 /* piles + action log */
-#table-center{display:flex;justify-content:center;align-items:center;gap:clamp(1.5rem,6vw,4rem);padding:.3rem;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+#table-center{display:flex;justify-content:center;align-items:center;gap:clamp(1.5rem,6vw,4rem);padding:.3rem;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30}
+/* On narrow phones opponents sit in a top row, so drop the piles to lower-center */
+@media(max-width:599px){#table-center{top:64%}}
 .pile{display:flex;flex-direction:column;align-items:center;gap:.3rem;cursor:pointer;transition:transform .15s;z-index:5}
 .pile:hover,.pile:active{transform:scale(1.05)}
 .pile-cards{position:relative;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
