@@ -371,10 +371,16 @@ const UI = (() => {
     status.textContent = filled < maxPlayers
       ? `${filled} / ${maxPlayers} players joined. Waiting…`
       : `All ${maxPlayers} players joined! Ready to start.`;
+    // Show host controls and keep them visible whenever lobby updates fire
+    const hostControls = document.getElementById('lobby-host-controls');
     const startBtn = document.getElementById('start-game-btn');
-    if (startBtn) {
+    if (hostControls && startBtn) {
+      const localIsHost = players.some(p => p.id === localPlayerId && p.isHost);
+      hostControls.style.display = localIsHost ? 'block' : 'none';
       startBtn.disabled = filled < 2;
-      startBtn.textContent = filled < 2 ? 'Need at least 2 players' : `START GAME (${filled} players)`;
+      startBtn.textContent = filled < 2
+        ? 'Need at least 2 players'
+        : `START GAME (${filled} players)`;
     }
   }
 
