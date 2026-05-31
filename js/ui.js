@@ -309,7 +309,7 @@ const UI = (() => {
     if (p.wentOut)              zone.classList.add('going-out');
     if (p.disconnected)         zone.classList.add('disconnected');
 
-    const avEl = renderAvatarEl(p.avatar, 46);
+    const avEl = renderAvatarEl(p.avatar, 62);
     if (!avatarEmoji(p.avatar))
       avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
