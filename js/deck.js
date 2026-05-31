@@ -1,256 +1,208 @@
 // ============================================================
-// game.js — Five Crowns Game Logic (v8)
-// New: getPublicState now includes revealedLeftover (unmelded
-//      cards shown in the right Final Cards panel after round ends)
+// deck.js — Card & Deck Logic for Five Crowns
 // ============================================================
 
-const Game = (() => {
+const SUITS = [
+  { id: 'star',    symbol: '★', cls: 'suit-star'    },
+  { id: 'heart',   symbol: '♥', cls: 'suit-heart'   },
+  { id: 'club',    symbol: '♣', cls: 'suit-club'    },
+  { id: 'spade',   symbol: '♠', cls: 'suit-spade'   },
+  { id: 'diamond', symbol: '♦', cls: 'suit-diamond' },
+];
 
-  let state = null;
-  function get() { return state; }
-  function set(s) { state = s; }
+// Ranks 3–13 (J=11, Q=12, K=13), plus Joker=0
+// Card values for scoring
+const RANK_INFO = {
+  0:  { label: 'JK', display: '🃏', score: 50  }, // Joker
+  3:  { label: '3',  display: '3',  score: 3   },
+  4:  { label: '4',  display: '4',  score: 4   },
+  5:  { label: '5',  display: '5',  score: 5   },
+  6:  { label: '6',  display: '6',  score: 6   },
+  7:  { label: '7',  display: '7',  score: 7   },
+  8:  { label: '8',  display: '8',  score: 8   },
+  9:  { label: '9',  display: '9',  score: 9   },
+  10: { label: '10', display: '10', score: 10  },
+  11: { label: 'J',  display: 'J',  score: 11  },
+  12: { label: 'Q',  display: 'Q',  score: 12  },
+  13: { label: 'K',  display: 'K',  score: 13  },
+};
 
-  function fresh(playerIds, playerNames, hostId, playerAvatars) {
-    return {
-      phase: 'lobby', round: 1, dealerIdx: 0, turnIdx: 0,
-      players: playerIds.map((id, i) => ({
-        id, name: playerNames[i],
-        avatar: (playerAvatars && playerAvatars[i]) || { animal:'none', color:'gold' },
-        hand: [], score: 0, roundScores: [],
-        wentOut: false, lastRoundMeld: null,
-        revealedMelds: null, revealedLeftover: null,
-      })),
-      drawPile: [], discardPile: [],
-      hostId, goingOutPlayerId: null,
-      finalTurnsLeft: 0, drawnThisTurn: false, roundWinner: null,
-    };
-  }
+let _cardIdCounter = 0;
 
-  // ── ROUND SETUP ──────────────────────────────────────────
-  function dealRound(s) {
-    const handSize = s.round + 2;
-    const deck = shuffleDeck(buildDoubleDeck());
-    s.players.forEach(p => {
-      p.hand = []; p.wentOut = false;
-      p.lastRoundMeld = null; p.revealedMelds = null; p.revealedLeftover = null;
-    });
-    s.goingOutPlayerId = null; s.finalTurnsLeft = 0;
-    s.drawnThisTurn = false; s.roundWinner = null;
-    const n = s.players.length;
-    for (let i = 0; i < handSize; i++)
-      for (let j = 0; j < n; j++)
-        s.players[(s.dealerIdx + 1 + j) % n].hand.push(deck.pop());
-    s.drawPile = deck;
-    s.discardPile = [s.drawPile.pop()];
-    s.turnIdx = (s.dealerIdx + 1) % n;
-    s.phase = 'draw';
-  }
-
-  // ── DRAW ─────────────────────────────────────────────────
-  function drawFromDeck(s, playerId) {
-    const p = getPlayer(s, playerId);
-    if (!p) return { ok:false, err:'Player not found' };
-    if (!isPlayerTurn(s, playerId)) return { ok:false, err:'Not your turn' };
-    if (s.phase !== 'draw' && s.phase !== 'going-out') return { ok:false, err:'Cannot draw now' };
-    if (s.drawnThisTurn) return { ok:false, err:'Already drew this turn' };
-
-    let didReshuffle = false;
-    if (s.drawPile.length === 0) didReshuffle = reshuffleDiscard(s);
-    if (s.drawPile.length === 0) return { ok:false, err:'No cards left to draw!' };
-
-    const card = s.drawPile.pop();
-    p.hand.push(card);
-    s.drawnThisTurn = true;
-    if (s.phase === 'draw') s.phase = 'discard';
-    return { ok:true, card, action:'draw-deck', reshuffled: didReshuffle };
-  }
-
-  function drawFromDiscard(s, playerId) {
-    const p = getPlayer(s, playerId);
-    if (!p) return { ok:false, err:'Player not found' };
-    if (!isPlayerTurn(s, playerId)) return { ok:false, err:'Not your turn' };
-    if (s.phase !== 'draw' && s.phase !== 'going-out') return { ok:false, err:'Cannot draw now' };
-    if (s.drawnThisTurn) return { ok:false, err:'Already drew this turn' };
-    if (s.discardPile.length === 0) return { ok:false, err:'Discard pile empty' };
-
-    const card = s.discardPile.pop();
-    p.hand.push(card);
-    s.drawnThisTurn = true;
-    if (s.phase === 'draw') s.phase = 'discard';
-    return { ok:true, card, action:'draw-discard' };
-  }
-
-  // ── DISCARD ──────────────────────────────────────────────
-  function discardCard(s, playerId, cardId) {
-    const p = getPlayer(s, playerId);
-    if (!p) return { ok:false, err:'Player not found' };
-    if (!isPlayerTurn(s, playerId)) return { ok:false, err:'Not your turn' };
-    if (s.phase !== 'discard' && s.phase !== 'going-out') return { ok:false, err:'Cannot discard now' };
-    if (s.phase === 'going-out' && !s.drawnThisTurn) return { ok:false, err:'Must draw first on your final turn' };
-
-    const idx = p.hand.findIndex(c => c.id === cardId);
-    if (idx === -1) return { ok:false, err:'Card not in hand' };
-    const [card] = p.hand.splice(idx, 1);
-    s.discardPile.push(card);
-
-    // On final turn: capture what remains as revealedLeftover before advancing
-    if (s.phase === 'going-out') {
-      const meldResult = tryMeld(p.hand, s.round);
-      if (meldResult.melds.length > 0) {
-        const meldedIds = new Set(meldResult.melds.flat().map(c => c.id));
-        p.revealedLeftover = p.hand.filter(c => !meldedIds.has(c.id));
-        p.revealedMelds = meldResult.melds;
-      } else {
-        p.revealedLeftover = [...p.hand];
-        p.revealedMelds = [];
-      }
-      p.revealedLeftoverRound = s.round;
-    }
-
-    return advanceTurn(s, playerId);
-  }
-
-  // ── VALIDATE GO-OUT ──────────────────────────────────────
-  function validateGoOut(hand, discardCardId, meldGroups, round) {
-    const discardCard = hand.find(c => c.id === discardCardId);
-    if (!discardCard) return { ok:false, err:'Discard card not found in hand' };
-    const melds = meldGroups.map(group => group.map(id => hand.find(c => c.id === id)).filter(Boolean));
-    const meldCardIds = new Set(melds.flat().map(c => c.id));
-    if (meldCardIds.has(discardCardId)) return { ok:false, err:'Discard card cannot be in a meld' };
-    const allUsed = new Set([...meldCardIds, discardCardId]);
-    for (const c of hand) if (!allUsed.has(c.id)) return { ok:false, err:'All cards must be in a meld or discarded' };
-    for (let i = 0; i < melds.length; i++) {
-      if (melds[i].length < 3) return { ok:false, err:`Group ${i+1} needs at least 3 cards` };
-      if (!isValidMeld(melds[i], round)) return { ok:false, err:`Group ${i+1} is not a valid book or run` };
-    }
-    return { ok:true, melds, discard: discardCard };
-  }
-
-  // ── GO OUT ───────────────────────────────────────────────
-  function goOut(s, playerId, discardCardId, meldGroups) {
-    const p = getPlayer(s, playerId);
-    if (!p) return { ok:false, err:'Player not found' };
-    if (!isPlayerTurn(s, playerId)) return { ok:false, err:'Not your turn' };
-    if (s.phase !== 'discard') return { ok:false, err:'Must draw first' };
-
-    const validation = validateGoOut(p.hand, discardCardId, meldGroups, s.round);
-    if (!validation.ok) return { ok:false, err:validation.err };
-
-    const cardIdx = p.hand.findIndex(c => c.id === discardCardId);
-    p.hand.splice(cardIdx, 1);
-    s.discardPile.push(validation.discard);
-
-    p.wentOut = true;
-    p.lastRoundMeld = validation.melds;
-    p.revealedMelds = validation.melds;
-    p.revealedLeftover = [];  // went out = no leftover points
-
-    s.goingOutPlayerId = playerId;
-    s.roundWinner = playerId;
-    s.phase = 'going-out';
-
-    const n = s.players.length;
-    s.finalTurnsLeft = n - 1;
-    s.turnIdx = (s.turnIdx + 1) % n;
-    s.drawnThisTurn = false;
-
-    if (s.finalTurnsLeft === 0) return endRound(s);
-    return { ok:true, action:'going-out', melds:validation.melds, discardCard:validation.discard, playerName:p.name };
-  }
-
-  function advanceTurn(s, playerId) {
-    const n = s.players.length;
-    if (s.phase === 'going-out') {
-      s.finalTurnsLeft--;
-      if (s.finalTurnsLeft <= 0) return endRound(s);
-    }
-    s.turnIdx = (s.turnIdx + 1) % n;
-    s.drawnThisTurn = false;
-    s.phase = s.phase === 'going-out' ? 'going-out' : 'draw';
-    return { ok:true, action:'next-turn' };
-  }
-
-  // ── ROUND END ────────────────────────────────────────────
-  function endRound(s) {
-    s.phase = 'round-end';
-    const results = s.players.map(p => {
-      let roundScore = 0;
-      if (p.wentOut) {
-        roundScore = 0;
-      } else {
-        // Score remaining unmelded cards
-        roundScore = handScore(p.hand, s.round);
-        // If revealedLeftover wasn't set during final turn (edge case), set it now
-        if (!p.revealedLeftover) {
-          const meldResult = tryMeld(p.hand, s.round);
-          if (meldResult.melds.length > 0) {
-            const meldedIds = new Set(meldResult.melds.flat().map(c => c.id));
-            p.revealedLeftover = p.hand.filter(c => !meldedIds.has(c.id));
-            if (!p.revealedMelds) p.revealedMelds = meldResult.melds;
-          } else {
-            p.revealedLeftover = [...p.hand];
-            if (!p.revealedMelds) p.revealedMelds = [];
-          }
-        }
-      }
-      p.score += roundScore;
-      p.roundScores.push(roundScore);
-      p.lastRoundScore = roundScore;  // stash for panel display
-      return { playerId:p.id, name:p.name, roundScore, totalScore:p.score };
-    });
-
-    if (s.round >= 11) {
-      s.phase = 'game-over';
-      const winner = s.players.reduce((a,b) => a.score <= b.score ? a : b);
-      s.winner = winner.id;
-      return { ok:true, action:'game-over', results, winner:winner.id, winnerName:winner.name };
-    }
-    return { ok:true, action:'round-end', results };
-  }
-
-  function nextRound(s) {
-    s.round++;
-    s.dealerIdx = (s.dealerIdx + 1) % s.players.length;
-    dealRound(s);
-    return { ok:true, action:'round-start' };
-  }
-
-  // ── HELPERS ─────────────────────────────────────────────
-  function reshuffleDiscard(s) {
-    if (s.discardPile.length <= 1) return false;
-    const top = s.discardPile.pop();
-    s.drawPile = shuffleDeck(s.discardPile);
-    s.discardPile = [top];
-    return true;
-  }
-  function getPlayer(s, id) { return s.players.find(p => p.id === id) || null; }
-  function isPlayerTurn(s, id) { return s.players[s.turnIdx]?.id === id; }
-
-  function getPublicState(s, forPlayerId) {
-    return {
-      phase: s.phase, round: s.round, turnIdx: s.turnIdx,
-      dealerIdx: s.dealerIdx, goingOutPlayerId: s.goingOutPlayerId,
-      finalTurnsLeft: s.finalTurnsLeft, drawnThisTurn: s.drawnThisTurn,
-      roundWinner: s.roundWinner, winner: s.winner || null,
-      drawPileCount: s.drawPile.length,
-      discardTop: s.discardPile[s.discardPile.length - 1] || null,
-      players: s.players.map(p => ({
-        id: p.id, name: p.name, avatar: p.avatar,
-        handCount: p.hand.length, score: p.score,
-        roundScores: p.roundScores, wentOut: p.wentOut,
-        revealedMelds: p.revealedMelds || null,
-        revealedLeftover: p.revealedLeftover || null,
-        roundScore: p.lastRoundScore,
-        roundForScore: s.round,
-        hand: p.id === forPlayerId ? p.hand : null,
-      })),
-    };
-  }
-
+function makeCard(rank, suit, deckIndex) {
   return {
-    fresh, get, set, dealRound,
-    drawFromDeck, drawFromDiscard, discardCard,
-    goOut, validateGoOut, nextRound, endRound,
-    getPlayer, isPlayerTurn, getPublicState,
+    id: `c${_cardIdCounter++}`,
+    rank,       // 0 = Joker, 3–13
+    suit,       // suit id string (null for joker)
+    deckIndex,  // which deck it came from (0 or 1)
   };
-})();
+}
+
+// Build one 58-card deck: 55 ranked cards + 3 jokers
+function buildSingleDeck(deckIndex) {
+  const cards = [];
+  for (const suit of SUITS) {
+    for (let rank = 3; rank <= 13; rank++) {
+      cards.push(makeCard(rank, suit.id, deckIndex));
+    }
+  }
+  // 3 Jokers
+  for (let j = 0; j < 3; j++) {
+    cards.push(makeCard(0, null, deckIndex));
+  }
+  return cards; // 55 + 3 = 58
+}
+
+// Build full double deck (116 cards)
+function buildDoubleDeck() {
+  _cardIdCounter = 0;
+  return [...buildSingleDeck(0), ...buildSingleDeck(1)];
+}
+
+// Fisher-Yates shuffle
+function shuffleDeck(deck) {
+  const arr = [...deck];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Round number (1–11) → wild rank (3–13)
+function getWildRank(round) {
+  return round + 2; // round 1 → 3, round 11 → 13
+}
+
+// Is this card wild for the given round?
+function isWild(card, round) {
+  if (card.rank === 0) return true;          // Joker always wild
+  if (card.rank === getWildRank(round)) return true;
+  return false;
+}
+
+// Score a single card for given round
+function cardScore(card, round) {
+  if (card.rank === 0) return 50; // Joker
+  if (card.rank === getWildRank(round)) return 20; // round wild
+  return RANK_INFO[card.rank].score;
+}
+
+// Score an entire unmelded hand
+function handScore(cards, round) {
+  return cards.reduce((sum, c) => sum + cardScore(c, round), 0);
+}
+
+// ── MELD VALIDATION ─────────────────────────────────────────
+
+// Check if an array of cards forms a valid book (3+ same rank, wilds ok)
+// A "book" = 3+ cards same value (rank). Wilds substitute freely.
+function isValidBook(cards, round) {
+  if (cards.length < 3) return false;
+  const naturals = cards.filter(c => !isWild(c, round));
+  if (naturals.length === 0) return true; // all wilds ok
+  const firstRank = naturals[0].rank;
+  return naturals.every(c => c.rank === firstRank);
+}
+
+// Check if an array of cards forms a valid run (3+ consecutive same suit, wilds ok)
+function isValidRun(cards, round) {
+  if (cards.length < 3) return false;
+  const naturals = cards.filter(c => !isWild(c, round));
+  if (naturals.length === 0) return true; // all wilds
+  const suit = naturals[0].suit;
+  if (!suit) return false;
+  if (!naturals.every(c => c.suit === suit)) return false;
+
+  // Sort naturals by rank
+  const sorted = naturals.slice().sort((a, b) => a.rank - b.rank);
+  const wildCount = cards.length - naturals.length;
+
+  // Check consecutive: gaps must be fillable with wilds
+  let wildNeeded = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i].rank - sorted[i - 1].rank;
+    if (gap < 1) return false; // duplicate rank in run
+    wildNeeded += gap - 1;
+  }
+  return wildNeeded <= wildCount;
+}
+
+// Check if a group of cards is a valid meld (book or run)
+function isValidMeld(cards, round) {
+  return isValidBook(cards, round) || isValidRun(cards, round);
+}
+
+// ── AUTO-MELD DETECTION ─────────────────────────────────────
+// Attempt to partition hand into valid melds + discard (1 leftover)
+// Returns { melds: [[...], [...]], leftover: [...], canGoOut: bool }
+// This is a heuristic solver — exhaustive for small hands
+
+function tryMeld(hand, round) {
+  const handSize = hand.length;
+  // Need exactly 1 discard card
+  if (handSize < 3) return { melds: [], leftover: hand, canGoOut: false };
+
+  // Try every possible discard
+  for (let discardIdx = 0; discardIdx < handSize; discardIdx++) {
+    const discard = hand[discardIdx];
+    const remaining = hand.filter((_, i) => i !== discardIdx);
+    const result = partitionIntoMelds(remaining, round);
+    if (result !== null) {
+      return { melds: result, leftover: [discard], canGoOut: true, discard };
+    }
+  }
+  return { melds: [], leftover: hand, canGoOut: false };
+}
+
+// Try to partition cards entirely into valid melds (recursive backtracking)
+function partitionIntoMelds(cards, round) {
+  if (cards.length === 0) return [];
+  if (cards.length < 3) return null;
+
+  // Try each subset of size 3, 4, 5... as first meld
+  for (let size = 3; size <= cards.length; size++) {
+    const combos = getCombinations(cards, size);
+    for (const combo of combos) {
+      if (isValidMeld(combo, round)) {
+        const rest = cards.filter(c => !combo.includes(c));
+        const sub = partitionIntoMelds(rest, round);
+        if (sub !== null) return [combo, ...sub];
+      }
+    }
+  }
+  return null;
+}
+
+// Get all combinations of size k from array
+function getCombinations(arr, k) {
+  const result = [];
+  function helper(start, current) {
+    if (current.length === k) { result.push([...current]); return; }
+    for (let i = start; i < arr.length; i++) {
+      current.push(arr[i]);
+      helper(i + 1, current);
+      current.pop();
+    }
+  }
+  helper(0, []);
+  return result;
+}
+
+// ── SUIT HELPERS ─────────────────────────────────────────────
+function getSuitInfo(suitId) {
+  return SUITS.find(s => s.id === suitId) || { symbol: '?', cls: '' };
+}
+
+function getCardLabel(card) {
+  if (card.rank === 0) return 'Joker';
+  const ri = RANK_INFO[card.rank];
+  const si = getSuitInfo(card.suit);
+  return `${ri.label}${si.symbol}`;
+}
+
+function getWildLabel(round) {
+  const rank = getWildRank(round);
+  const ri = RANK_INFO[rank];
+  return `${ri.label}s`;
+}
