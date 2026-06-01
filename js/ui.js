@@ -459,7 +459,7 @@ const UI = (() => {
     content.innerHTML = '';
 
     // Players who have submitted their final cards (wentOut OR have revealedMelds)
-    const submitted = players.filter(p => p.wentOut || (p.revealedMelds && p.revealedMelds.length > 0));
+    const submitted = players.filter(p => p.wentOut || (p.revealedMelds && p.revealedMelds.length > 0) || (p.revealedLeftover && p.revealedLeftover.length > 0));
     if (submitted.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'panel-empty-msg';
@@ -519,7 +519,7 @@ const UI = (() => {
         row.className = 'final-meld-row';
         const lbl = document.createElement('div');
         lbl.className = 'final-leftover-label';
-        lbl.textContent = `Points (${p.revealedLeftover.reduce((s,c) => s + cardScore(c, p.roundForScore || 1), 0)} pts)`;
+        lbl.textContent = `Unmelded — counts as points (${p.revealedLeftover.reduce((s,c) => s + cardScore(c, p.roundForScore || 1), 0)} pts)`;
         row.appendChild(lbl);
         p.revealedLeftover.forEach(card => row.appendChild(renderCardMini(card, true)));
         block.appendChild(row);
