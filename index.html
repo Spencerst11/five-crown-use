@@ -280,6 +280,7 @@
         <span id="turn-indicator" class="turn-badge hidden">YOUR TURN</span>
         <div id="action-buttons">
           <button class="btn btn-success btn-small" id="btn-go-out" onclick="goOut()" style="display:none">GO OUT ✓</button>
+          <button class="btn btn-success btn-small" id="btn-lay-down" onclick="startLayDown()" style="display:none">LAY DOWN ✓</button>
           <button class="btn btn-warning btn-small" onclick="sortHand()">Sort</button>
         </div>
       </div>
@@ -289,7 +290,7 @@
         <div id="goout-status-bar" class="goout-status-bar status-warn">Tap each card → assign to Group or Discard</div>
         <div class="goout-controls-row">
           <button class="btn btn-small btn-secondary" onclick="addGoOutGroup()">＋ Group</button>
-          <button class="btn btn-small btn-success"   onclick="submitGoOut()">✓ SUBMIT</button>
+          <button class="btn btn-small btn-success"   onclick="submitBuilder()">✓ SUBMIT</button>
           <button class="btn btn-small btn-ghost"     onclick="cancelGoOut()">✕</button>
         </div>
       </div>
