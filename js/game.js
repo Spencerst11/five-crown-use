@@ -33,6 +33,7 @@ const Game = (() => {
     s.players.forEach(p => {
       p.hand = []; p.wentOut = false;
       p.lastRoundMeld = null; p.revealedMelds = null; p.revealedLeftover = null;
+      p.finalScoreCards = null;
     });
     s.goingOutPlayerId = null; s.finalTurnsLeft = 0;
     s.drawnThisTurn = false; s.roundWinner = null;
@@ -93,18 +94,13 @@ const Game = (() => {
     const [card] = p.hand.splice(idx, 1);
     s.discardPile.push(card);
 
-    // On final turn: capture what remains as revealedLeftover before advancing
+    // On a plain final-turn discard (player chose NOT to lay down melds),
+    // all remaining cards count as points.
     if (s.phase === 'going-out') {
-      const meldResult = tryMeld(p.hand, s.round);
-      if (meldResult.melds.length > 0) {
-        const meldedIds = new Set(meldResult.melds.flat().map(c => c.id));
-        p.revealedLeftover = p.hand.filter(c => !meldedIds.has(c.id));
-        p.revealedMelds = meldResult.melds;
-      } else {
-        p.revealedLeftover = [...p.hand];
-        p.revealedMelds = [];
-      }
+      p.revealedMelds = [];
+      p.revealedLeftover = [...p.hand];
       p.revealedLeftoverRound = s.round;
+      p.finalScoreCards = [...p.hand];
     }
 
     return advanceTurn(s, playerId);
@@ -158,6 +154,48 @@ const Game = (() => {
     return { ok:true, action:'going-out', melds:validation.melds, discardCard:validation.discard, playerName:p.name };
   }
 
+  // ── FINAL TURN LAY-DOWN ──────────────────────────────────
+  // A non-going-out player, on their final turn, manually groups melds and
+  // discards one card. Only the unmelded leftover counts as points.
+  // meldGroups: array of arrays of card IDs. discardCardId: the card to discard.
+  function finalTurnLayDown(s, playerId, discardCardId, meldGroups) {
+    const p = getPlayer(s, playerId);
+    if (!p) return { ok:false, err:'Player not found' };
+    if (!isPlayerTurn(s, playerId)) return { ok:false, err:'Not your turn' };
+    if (s.phase !== 'going-out') return { ok:false, err:'Not a final turn' };
+    if (!s.drawnThisTurn) return { ok:false, err:'Draw a card first on your final turn' };
+
+    const discardCard = p.hand.find(c => c.id === discardCardId);
+    if (!discardCard) return { ok:false, err:'Discard card not found in hand' };
+
+    // Build and validate the melds the player chose (each must be a legal book/run of 3+)
+    const groups = (meldGroups || []).map(g => g.map(id => p.hand.find(c => c.id === id)).filter(Boolean));
+    const meldCardIds = new Set(groups.flat().map(c => c.id));
+    if (meldCardIds.has(discardCardId)) return { ok:false, err:'Discard cannot be in a meld' };
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].length > 0 && groups[i].length < 3) return { ok:false, err:`Group ${i+1} needs at least 3 cards` };
+      if (groups[i].length >= 3 && !isValidMeld(groups[i], s.round)) return { ok:false, err:`Group ${i+1} is not a valid book or run` };
+    }
+
+    // Remove the discard from hand and place on pile
+    const idx = p.hand.findIndex(c => c.id === discardCardId);
+    p.hand.splice(idx, 1);
+    s.discardPile.push(discardCard);
+
+    // Leftover = everything still in hand that is NOT in a valid meld group
+    const validMelds = groups.filter(g => g.length >= 3 && isValidMeld(g, s.round));
+    const meldedIds = new Set(validMelds.flat().map(c => c.id));
+    const leftover = p.hand.filter(c => !meldedIds.has(c.id));
+
+    p.revealedMelds = validMelds;
+    p.revealedLeftover = leftover;
+    p.revealedLeftoverRound = s.round;
+    // Store the chosen leftover so endRound scores exactly this (not the whole hand)
+    p.finalScoreCards = leftover;
+
+    return advanceTurn(s, playerId);
+  }
+
   function advanceTurn(s, playerId) {
     const n = s.players.length;
     if (s.phase === 'going-out') {
@@ -177,20 +215,16 @@ const Game = (() => {
       let roundScore = 0;
       if (p.wentOut) {
         roundScore = 0;
+      } else if (p.finalScoreCards) {
+        // Player manually laid down melds on their final turn — score ONLY
+        // the unmelded leftover they chose. Fully melded = 0 points.
+        roundScore = handScore(p.finalScoreCards, s.round);
       } else {
-        // Score remaining unmelded cards
+        // Fallback (player never got a final turn / disconnected): score whole hand
         roundScore = handScore(p.hand, s.round);
-        // If revealedLeftover wasn't set during final turn (edge case), set it now
         if (!p.revealedLeftover) {
-          const meldResult = tryMeld(p.hand, s.round);
-          if (meldResult.melds.length > 0) {
-            const meldedIds = new Set(meldResult.melds.flat().map(c => c.id));
-            p.revealedLeftover = p.hand.filter(c => !meldedIds.has(c.id));
-            if (!p.revealedMelds) p.revealedMelds = meldResult.melds;
-          } else {
-            p.revealedLeftover = [...p.hand];
-            if (!p.revealedMelds) p.revealedMelds = [];
-          }
+          p.revealedLeftover = [...p.hand];
+          if (!p.revealedMelds) p.revealedMelds = [];
         }
       }
       p.score += roundScore;
@@ -250,7 +284,7 @@ const Game = (() => {
   return {
     fresh, get, set, dealRound,
     drawFromDeck, drawFromDiscard, discardCard,
-    goOut, validateGoOut, nextRound, endRound,
+    goOut, validateGoOut, finalTurnLayDown, nextRound, endRound,
     getPlayer, isPlayerTurn, getPublicState,
   };
 })();
