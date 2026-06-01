@@ -336,8 +336,19 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .goout-unset{opacity:.7}
 
 /* Card action picker */
-.card-action-picker{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a1e2a;border:1px solid rgba(240,192,64,.3);border-radius:12px;padding:.55rem .45rem;display:flex;flex-direction:column;gap:.28rem;z-index:100;min-width:145px;box-shadow:0 8px 24px rgba(0,0,0,.7)}
-.picker-label{font-family:var(--font-heading);font-size:.7rem;color:var(--gold);text-align:center;letter-spacing:.1em;margin-bottom:.15rem;padding-bottom:.25rem;border-bottom:1px solid rgba(255,255,255,.1)}
+.card-action-picker{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  background:#1a1e2a;
+  border-top:2px solid rgba(240,192,64,.4);
+  border-radius:0;
+  padding:.6rem .7rem calc(.6rem + env(safe-area-inset-bottom,0px));
+  display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:.5rem;
+  z-index:160;
+  box-shadow:0 -6px 24px rgba(0,0,0,.6);
+}
+.picker-label{font-family:var(--font-heading);font-size:.72rem;color:var(--gold);text-align:center;letter-spacing:.08em;margin:0;padding:0 .5rem 0 0;border:none;white-space:nowrap;align-self:center}
 .picker-btn{font-family:var(--font-heading);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:.32rem .55rem;cursor:pointer;background:rgba(255,255,255,.05);color:var(--cream);text-align:center;transition:all .15s}
 .picker-btn:hover,.picker-btn:active{background:rgba(255,255,255,.12)}
 .picker-btn.active{background:rgba(240,192,64,.15);border-color:var(--gold);color:var(--gold)}
