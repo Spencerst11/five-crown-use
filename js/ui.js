@@ -148,7 +148,7 @@ const UI = (() => {
     picker.appendChild(discBtn);
 
     const sep = document.createElement('div');
-    sep.style.cssText = 'font-size:.65rem;color:#6a8a6a;padding:.15rem 0;text-align:center;';
+    sep.style.cssText = 'font-size:.62rem;color:#6a8a6a;padding:0 .15rem;align-self:center;white-space:nowrap;letter-spacing:.05em;';
     sep.textContent = '— meld group —';
     picker.appendChild(sep);
 
