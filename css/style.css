@@ -336,19 +336,19 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .goout-unset{opacity:.7}
 
 /* Card action picker */
-.card-action-picker{
-  position:fixed;
-  left:0;right:0;bottom:0;
-  background:#1a1e2a;
-  border-top:2px solid rgba(240,192,64,.4);
-  border-radius:0;
-  padding:.6rem .7rem calc(.6rem + env(safe-area-inset-bottom,0px));
+/* Card-assignment bar: horizontal, sits ABOVE the hand inside the player area */
+#card-assign-bar{
   display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;
-  gap:.5rem;
-  z-index:160;
-  box-shadow:0 -6px 24px rgba(0,0,0,.6);
+  gap:.4rem;
+  background:#1a1e2a;
+  border:1px solid rgba(240,192,64,.4);
+  border-radius:10px;
+  padding:.45rem .6rem;
+  margin:.3rem auto;
+  max-width:100%;
+  box-shadow:0 2px 12px rgba(0,0,0,.5);
 }
-.picker-label{font-family:var(--font-heading);font-size:.72rem;color:var(--gold);text-align:center;letter-spacing:.08em;margin:0;padding:0 .5rem 0 0;border:none;white-space:nowrap;align-self:center}
+.picker-label{font-family:var(--font-heading);font-size:.74rem;color:var(--gold);text-align:center;letter-spacing:.06em;margin:0;padding:0 .35rem 0 0;border:none;white-space:nowrap;align-self:center;font-weight:700}
 .picker-btn{font-family:var(--font-heading);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:.32rem .55rem;cursor:pointer;background:rgba(255,255,255,.05);color:var(--cream);text-align:center;transition:all .15s}
 .picker-btn:hover,.picker-btn:active{background:rgba(255,255,255,.12)}
 .picker-btn.active{background:rgba(240,192,64,.15);border-color:var(--gold);color:var(--gold)}
@@ -449,7 +449,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 @media(min-width:768px) and (max-width:1099px){:root{--card-w:66px;--card-h:92px;--card-font:1.4rem;--card-val:.8rem}}
 @media(min-width:600px) and (max-width:767px){:root{--card-w:62px;--card-h:86px;--card-font:1.3rem;--card-val:.76rem};.game-title-small{display:none}}
 @media(min-width:430px) and (max-width:599px){:root{--card-w:56px;--card-h:78px;--card-font:1.15rem;--card-val:.7rem};.game-title-small{display:none};.opponent-zone{min-width:142px;max-width:176px;padding:.6rem .8rem;gap:.6rem}.opp-avatar{width:46px;height:46px;font-size:1.4rem}.opp-name{font-size:.92rem;max-width:108px}.opp-cards{font-size:.74rem}.opp-card-mini{width:13px;height:19px}}
-@media(min-width:360px) and (max-width:429px){:root{--card-w:50px;--card-h:70px;--card-font:1.05rem;--card-val:.66rem};.game-title-small{display:none};.hand-hint{display:none};.card-action-picker{min-width:128px};.opponent-zone{min-width:122px;max-width:148px;padding:.5rem .6rem;gap:.5rem}.opp-avatar{width:40px;height:40px;font-size:1.2rem}.opp-name{font-size:.82rem;max-width:88px}.opp-cards{font-size:.68rem}.opp-card-mini{width:11px;height:16px}}
+@media(min-width:360px) and (max-width:429px){:root{--card-w:50px;--card-h:70px;--card-font:1.05rem;--card-val:.66rem};.game-title-small{display:none};.hand-hint{display:none};.opponent-zone{min-width:122px;max-width:148px;padding:.5rem .6rem;gap:.5rem}.opp-avatar{width:40px;height:40px;font-size:1.2rem}.opp-name{font-size:.82rem;max-width:88px}.opp-cards{font-size:.68rem}.opp-card-mini{width:11px;height:16px}}
 @media(max-width:359px){:root{--card-w:44px;--card-h:62px;--card-font:.9rem;--card-val:.6rem};.game-title-small{display:none};.opp-card-mini{display:none};.hand-hint{display:none};.card-joker-label{display:none};.opponent-zone{min-width:106px;max-width:130px;padding:.42rem .52rem;gap:.42rem}.opp-avatar{width:36px;height:36px;font-size:1.05rem}.opp-name{font-size:.76rem;max-width:72px}.opp-cards{font-size:.62rem}}
 @media(max-height:500px) and (orientation:landscape){:root{--card-w:46px;--card-h:64px;--card-font:.95rem;--card-val:.62rem};#table-center{gap:1.2rem};.hand-container{max-height:90px};#action-log-wrapper{bottom:2px}}
 @media(-webkit-min-device-pixel-ratio:2),(min-resolution:192dpi){.card{border-width:1px};.card-back{border-width:1.5px}}
