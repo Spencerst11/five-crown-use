@@ -22,6 +22,7 @@ let _localHand          = [];
 let _goOutMode          = false;
 let _goOutMeldGroups    = [];
 let _goOutDiscardId     = null;
+let _layDownMode        = false;   // final-turn manual meld lay-down (after an opponent went out)
 let _reconnecting       = false;
 let _roundCountdownTimer = null;
 
@@ -401,7 +402,10 @@ function _updateYouZone(localPlayer, isMyTurn, phase, drawnThisTurn) {
   if (nameEl) nameEl.textContent = Network.getLocalPlayerName();
   if (scoreEl && localPlayer) scoreEl.textContent = localPlayer.score + ' pts';
   if (badge) badge.classList.toggle('hidden', !isMyTurn || phase === 'round-end' || phase === 'game-over');
-  if (goOutBtn) goOutBtn.style.display = (isMyTurn && phase === 'discard') ? 'inline-block' : 'none';
+  if (goOutBtn) goOutBtn.style.display = (isMyTurn && phase === 'discard' && !_goOutMode && !_layDownMode) ? 'inline-block' : 'none';
+  // LAY DOWN appears on your final turn (an opponent already went out) once you've drawn
+  const layBtn = document.getElementById('btn-lay-down');
+  if (layBtn) layBtn.style.display = (isMyTurn && phase === 'going-out' && drawnThisTurn && !_layDownMode && !_goOutMode) ? 'inline-block' : 'none';
 }
 
 // ── CARD INTERACTIONS ─────────────────────────────────────
@@ -546,6 +550,66 @@ function submitGoOut() {
   _exitGoOutMode();
 }
 
+// ── FINAL-TURN LAY DOWN (after an opponent has gone out) ──
+// Reuses the same builder UI/state as go-out, BUT leftover (un-melded)
+// cards are allowed — they simply count as points. Only requirement:
+// exactly one card marked as the discard.
+function startLayDown() {
+  const s = _currentPublicState;
+  if (!s) return;
+  const localId = Network.getLocalPlayerId();
+  if (s.players[s.turnIdx]?.id !== localId) { UI.showToast("It's not your turn!"); return; }
+  if (s.phase !== 'going-out') { UI.showToast('Lay down is only on your final turn.'); return; }
+  if (!s.drawnThisTurn) { UI.showToast('Draw a card first.'); return; }
+
+  _layDownMode = true;
+  _goOutMode = true;            // reuse the builder rendering/state
+  _goOutMeldGroups = [new Set()];
+  _goOutDiscardId = null;
+  document.getElementById('goout-builder-bar').style.display = 'flex';
+  document.getElementById('btn-go-out').style.display = 'none';
+  document.getElementById('btn-lay-down').style.display = 'none';
+  // Update the status hint to reflect lay-down rules
+  const statusEl = document.getElementById('goout-status-bar');
+  if (statusEl) statusEl.textContent = 'Group any melds (3+), mark ONE card as Discard. Un-melded cards count as points.';
+  _renderGameTable(s);
+  UI.showToast('Group your melds to reduce points, mark one Discard, then SUBMIT.', 5000);
+}
+
+// Router: the builder's SUBMIT button calls this; it dispatches based on mode
+function submitBuilder() {
+  if (_layDownMode) submitFinalLayDown();
+  else submitGoOut();
+}
+
+function submitFinalLayDown() {
+  const s = _currentPublicState;
+  if (!s) return;
+
+  // Must mark exactly one discard
+  if (!_goOutDiscardId) { UI.showGoOutError('Mark ONE card as your Discard to end your final turn.'); return; }
+  if (!_localHand.find(c => c.id === _goOutDiscardId)) { UI.showGoOutError('Discard card not found in your hand.'); return; }
+
+  // Build groups; leftovers are allowed (they score), but any group that
+  // exists must be a valid book/run of 3+.
+  const meldGroupArrays = _goOutMeldGroups.map(g => [...g]).filter(g => g.length > 0);
+  for (let i = 0; i < meldGroupArrays.length; i++) {
+    const groupCards = meldGroupArrays[i].map(id => _localHand.find(c => c.id === id)).filter(Boolean);
+    if (groupCards.length < 3) {
+      UI.showGoOutError(`Group ${i+1} needs at least 3 cards, or remove those cards to count them as points.`);
+      return;
+    }
+    if (!isValidMeld(groupCards, s.round)) {
+      UI.showGoOutError(`Group ${i+1} (${groupCards.map(c => getCardLabel(c)).join(', ')}) is not a valid Book or Run.`);
+      return;
+    }
+  }
+  if (meldGroupArrays.flat().includes(_goOutDiscardId)) { UI.showGoOutError('Your discard cannot be in a meld group.'); return; }
+
+  Network.sendAction({ type:'final-laydown', discardCardId:_goOutDiscardId, meldGroups:meldGroupArrays });
+  _exitGoOutMode();
+}
+
 function cancelGoOut() {
   _exitGoOutMode();
   const s = _currentPublicState;
@@ -553,7 +617,7 @@ function cancelGoOut() {
 }
 
 function _exitGoOutMode() {
-  _goOutMode = false; _goOutMeldGroups = []; _goOutDiscardId = null;
+  _goOutMode = false; _layDownMode = false; _goOutMeldGroups = []; _goOutDiscardId = null;
   const bar = document.getElementById('goout-builder-bar');
   if (bar) bar.style.display = 'none';
 }
