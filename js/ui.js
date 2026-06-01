@@ -131,26 +131,28 @@ const UI = (() => {
 
   let _pickerEl = null;
   function _showCardActionPicker(card, numGroups, currentAssign, onCardAction) {
-    if (_pickerEl) { _pickerEl.remove(); _pickerEl = null; }
-    const picker = document.createElement('div');
-    picker.className = 'card-action-picker';
-    _pickerEl = picker;
+    // Fill the fixed horizontal bar that lives ABOVE the hand (never over the table).
+    const bar = document.getElementById('card-assign-bar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    bar.style.display = 'flex';
+    _pickerEl = bar;
 
     const label = document.createElement('div');
     label.className = 'picker-label';
-    label.textContent = `Assign: ${getCardLabel(card)}`;
-    picker.appendChild(label);
+    label.textContent = `${getCardLabel(card)} →`;
+    bar.appendChild(label);
 
     const discBtn = document.createElement('button');
     discBtn.className = 'picker-btn picker-discard' + (currentAssign?.type==='discard'?' active':'');
-    discBtn.textContent = '🗑️  Discard';
-    discBtn.onclick = () => { onCardAction(card,'discard'); picker.remove(); _pickerEl=null; };
-    picker.appendChild(discBtn);
+    discBtn.textContent = '🗑️ Discard';
+    discBtn.onclick = (e) => { e.stopPropagation(); onCardAction(card,'discard'); _hideAssignBar(); };
+    bar.appendChild(discBtn);
 
     const sep = document.createElement('div');
-    sep.style.cssText = 'font-size:.62rem;color:#6a8a6a;padding:0 .15rem;align-self:center;white-space:nowrap;letter-spacing:.05em;';
-    sep.textContent = '— meld group —';
-    picker.appendChild(sep);
+    sep.style.cssText = 'font-size:.62rem;color:#6a8a6a;padding:0 .1rem;align-self:center;white-space:nowrap;';
+    sep.textContent = '· group ·';
+    bar.appendChild(sep);
 
     for (let g = 0; g < numGroups; g++) {
       const isActive = currentAssign?.type==='group' && currentAssign.groupIdx===g;
@@ -159,30 +161,29 @@ const UI = (() => {
       gBtn.style.borderColor = _groupColor(g);
       gBtn.style.color = isActive ? 'white' : _groupColor(g);
       if (isActive) gBtn.style.background = _groupColor(g);
-      gBtn.textContent = `Group ${g+1}`;
+      gBtn.textContent = `G${g+1}`;
       const gi = g;
-      gBtn.onclick = () => { onCardAction(card,`group-${gi}`); picker.remove(); _pickerEl=null; };
-      picker.appendChild(gBtn);
+      gBtn.onclick = (e) => { e.stopPropagation(); onCardAction(card,`group-${gi}`); _hideAssignBar(); };
+      bar.appendChild(gBtn);
     }
     if (currentAssign) {
       const unBtn = document.createElement('button');
       unBtn.className = 'picker-btn picker-unassign';
-      unBtn.textContent = '✕  Remove';
-      unBtn.onclick = () => { onCardAction(card,'unassign'); picker.remove(); _pickerEl=null; };
-      picker.appendChild(unBtn);
+      unBtn.textContent = '✕ Remove';
+      unBtn.onclick = (e) => { e.stopPropagation(); onCardAction(card,'unassign'); _hideAssignBar(); };
+      bar.appendChild(unBtn);
     }
     const closeBtn = document.createElement('button');
     closeBtn.className = 'picker-btn picker-close';
-    closeBtn.textContent = 'Cancel';
-    closeBtn.onclick = () => { picker.remove(); _pickerEl=null; };
-    picker.appendChild(closeBtn);
+    closeBtn.textContent = 'Close';
+    closeBtn.onclick = (e) => { e.stopPropagation(); _hideAssignBar(); };
+    bar.appendChild(closeBtn);
+  }
 
-    document.getElementById('player-area').appendChild(picker);
-    setTimeout(() => {
-      document.addEventListener('click', function outsideClick(e) {
-        if (!picker.contains(e.target)) { picker.remove(); _pickerEl=null; document.removeEventListener('click',outsideClick); }
-      });
-    }, 80);
+  function _hideAssignBar() {
+    const bar = document.getElementById('card-assign-bar');
+    if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
+    _pickerEl = null;
   }
 
   function updateGoOutStatus(hand, round, meldGroups, discardId) {
