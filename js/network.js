@@ -460,6 +460,7 @@ const Network = (() => {
     else if (actionData.type === 'draw-discard') result = Game.drawFromDiscard(gs, pid);
     else if (actionData.type === 'discard')      result = Game.discardCard(gs, pid, actionData.cardId);
     else if (actionData.type === 'go-out')       result = Game.goOut(gs, pid, actionData.discardCardId, actionData.meldGroups);
+    else if (actionData.type === 'final-laydown') result = Game.finalTurnLayDown(gs, pid, actionData.discardCardId, actionData.meldGroups);
     else if (actionData.type === 'next-round') {
       // Only host advances rounds
       if (!isHost) return;
