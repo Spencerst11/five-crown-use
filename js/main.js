@@ -620,6 +620,8 @@ function _exitGoOutMode() {
   _goOutMode = false; _layDownMode = false; _goOutMeldGroups = []; _goOutDiscardId = null;
   const bar = document.getElementById('goout-builder-bar');
   if (bar) bar.style.display = 'none';
+  const assignBar = document.getElementById('card-assign-bar');
+  if (assignBar) { assignBar.style.display = 'none'; assignBar.innerHTML = ''; }
 }
 
 // ── SORT HAND ─────────────────────────────────────────────
