@@ -252,54 +252,29 @@ const UI = (() => {
     container.appendChild(el);
   }
 
-  // ── CIRCULAR OPPONENTS ────────────────────────────────────
+  // ── ACTIVE-OPPONENT-ONLY DISPLAY ──────────────────────────
+  // Show ONLY the opponent whose turn it currently is — centered near the
+  // top of the table. When it's the local player's turn (or no opponent is
+  // active), no opponent box is shown, freeing up screen space.
   function renderOpponents(players, localPlayerId, currentTurnId) {
     const area = document.getElementById('opponents-area');
     area.innerHTML = '';
-
-    const opponents = players.filter(p => p.id !== localPlayerId);
-    const count = opponents.length;
-    if (count === 0) return;
-
-    const areaW = area.offsetWidth || window.innerWidth;
-    const areaH = area.offsetHeight || 260;
-
-    // On narrow phones, abandon the oval seating (boxes overlap / run off
-    // screen) and lay opponents out as a simple wrapped top row.
-    const isNarrow = window.innerWidth < 600;
-
-    if (isNarrow) {
-      area.classList.add('opponents-toprow');
-      opponents.forEach((p) => {
-        const zone = _buildOpponentZone(p, currentTurnId);
-        // No absolute positioning — flex row handles layout
-        zone.style.position = 'static';
-        zone.style.transform = 'none';
-        area.appendChild(zone);
-      });
-      return;
-    }
-
     area.classList.remove('opponents-toprow');
+    area.classList.add('opponents-single');
 
-    // Oval parameters — opponents arc across the top (bigger screens)
-    const rx = Math.min(areaW * 0.44, 340);
-    const ry = Math.min(areaH * 0.46, 125);
-    const cx = areaW / 2;
-    const cy = areaH * 0.5;
+    // If it's the local player's turn, don't show any opponent box.
+    if (!currentTurnId || currentTurnId === localPlayerId) return;
 
-    opponents.forEach((p, i) => {
-      // Spread from ~205° to ~335° (top arc, left→right)
-      const angle = count === 1 ? 270 : 205 + (i / (count - 1)) * 130;
-      const rad = angle * Math.PI / 180;
-      const x = cx + rx * Math.cos(rad);
-      const y = cy + ry * Math.sin(rad);
+    const active = players.find(p => p.id === currentTurnId && p.id !== localPlayerId);
+    if (!active) return;
 
-      const zone = _buildOpponentZone(p, currentTurnId);
-      zone.style.left = `${x}px`;
-      zone.style.top  = `${y}px`;
-      area.appendChild(zone);
-    });
+    const zone = _buildOpponentZone(active, currentTurnId);
+    // Center it horizontally near the top of the table area.
+    zone.style.position = 'absolute';
+    zone.style.left = '50%';
+    zone.style.top = '0';
+    zone.style.transform = 'translateX(-50%)';
+    area.appendChild(zone);
   }
 
   // Build a single opponent box (shared by oval + top-row layouts)
@@ -310,11 +285,11 @@ const UI = (() => {
     if (p.wentOut)              zone.classList.add('going-out');
     if (p.disconnected)         zone.classList.add('disconnected');
 
-    const avEl = renderAvatarEl(p.avatar, 62);
+    const avEl = renderAvatarEl(p.avatar, 40);
     if (!avatarEmoji(p.avatar))
       avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
-    const cardBacks = Math.min(p.handCount, 8);
+    const cardBacks = Math.min(p.handCount, 6);
     let backsHtml = '';
     for (let b = 0; b < cardBacks; b++) backsHtml += `<div class="opp-card-mini"></div>`;
 
