@@ -646,11 +646,13 @@ function _exitGoOutMode() {
 function sortHand() {
   const s = _currentPublicState;
   if (!s || _localHand.length === 0) return;
+  // Sort by ascending numeric order (rank). Jokers (rank 0) go to the end.
   _localHand.sort((a, b) => {
-    if (a.rank === 0 && b.rank !== 0) return -1;
-    if (b.rank === 0 && a.rank !== 0) return 1;
-    if (a.suit !== b.suit) return (a.suit||'zzz').localeCompare(b.suit||'zzz');
-    return a.rank - b.rank;
+    const ra = (a.rank === 0) ? 999 : a.rank;
+    const rb = (b.rank === 0) ? 999 : b.rank;
+    if (ra !== rb) return ra - rb;
+    // Same rank: keep suits together for readability
+    return (a.suit||'zzz').localeCompare(b.suit||'zzz');
   });
   if (_goOutMode) {
     UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId, handleGoOutCardClick, handleCardReorder);
