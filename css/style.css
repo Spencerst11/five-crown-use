@@ -360,6 +360,22 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 
 /* ── PLAYING CARDS ── */
 .card{width:var(--card-w,68px);height:var(--card-h,96px);background:var(--card-bg);border:2px solid #ddd;border-radius:var(--radius-card);cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;padding:3px 4px;box-shadow:2px 3px 8px var(--card-shadow);transition:transform .15s,box-shadow .15s,border-color .15s;position:relative;user-select:none;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* When a card shows artwork, the image fills the whole card face */
+/* Artwork cards: KEEP the game's white card frame (border + rounded corners),
+   and crop the border out of the photo so only the inner art (numbers, suits,
+   characters) shows inside the game's card.
+   --art-crop controls how much of the photo's outer edge is trimmed off.
+   Increase it to hide more border; decrease it to show more of the photo. */
+:root{ --art-crop: 10%; }
+.card.card-img{padding:0;overflow:hidden;background:var(--card-bg)}
+.card-art{
+  width:calc(100% + var(--art-crop) * 2);
+  height:calc(100% + var(--art-crop) * 2);
+  margin:calc(-1 * var(--art-crop));
+  object-fit:cover;
+  border-radius:calc(var(--radius-card) - 2px);
+  display:block;pointer-events:none;-webkit-user-drag:none;
+}
 .card:hover{transform:translateY(-6px);box-shadow:2px 8px 18px rgba(0,0,0,.6)}
 .card.selected{transform:translateY(-12px);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold),2px 12px 22px rgba(0,0,0,.7)}
 .card.in-meld{border-color:#22863a;box-shadow:0 0 5px rgba(34,134,58,.5)}
