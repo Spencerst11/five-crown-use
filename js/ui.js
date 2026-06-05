@@ -648,18 +648,25 @@ const UI = (() => {
     const sx = startCenterX - 24;
     const sy = startCenterY - 32;
     const handW   = paRect.width;
-    const ex_base = paRect.left - taRect.left;
-    const ey      = paRect.top  - taRect.top + 8;
+    const ey      = paRect.top - taRect.top + 8;
+
+    // Fan the dealt cards out CENTERED on the hand area.
+    // Compute the total fan width, then start half of it left of center
+    // so the cards land in the middle of the player's hand.
+    const cardGap   = 30;                                   // px between dealt cards
+    const fanWidth  = numCards <= 1 ? 0 : (numCards - 1) * cardGap;
+    const handCenterX = (paRect.left - taRect.left) + handW / 2;
+    const fanStartX = handCenterX - fanWidth / 2 - 24;      // -24 = half card width
 
     const cardDelay = Math.min(150, 950 / numCards);
     for (let i = 0; i < numCards; i++) {
       const cardEl = document.createElement('div');
       cardEl.className = 'deal-card-anim';
       cardEl.textContent = '👑';
-      const spread = numCards <= 1 ? 0 : (i/(numCards-1)) * Math.min(handW-56, numCards*58);
+      const ex = fanStartX + i * cardGap;
       cardEl.style.setProperty('--sx', `${sx}px`);
       cardEl.style.setProperty('--sy', `${sy}px`);
-      cardEl.style.setProperty('--ex', `${ex_base + spread}px`);
+      cardEl.style.setProperty('--ex', `${ex}px`);
       cardEl.style.setProperty('--ey', `${ey}px`);
       cardEl.style.setProperty('--sr', '0deg');
       cardEl.style.setProperty('--er', `${(Math.random()-.5)*12}deg`);
