@@ -646,13 +646,13 @@ function _exitGoOutMode() {
 function sortHand() {
   const s = _currentPublicState;
   if (!s || _localHand.length === 0) return;
-  // Sort by ascending numeric order (rank). Jokers (rank 0) go to the end.
+  // Sort PURELY by ascending rank, ignoring suit entirely.
+  // Jokers (rank 0) are treated as highest so they sit at the end.
+  // (Stable sort keeps same-rank cards in their current relative order.)
   _localHand.sort((a, b) => {
     const ra = (a.rank === 0) ? 999 : a.rank;
     const rb = (b.rank === 0) ? 999 : b.rank;
-    if (ra !== rb) return ra - rb;
-    // Same rank: keep suits together for readability
-    return (a.suit||'zzz').localeCompare(b.suit||'zzz');
+    return ra - rb;
   });
   if (_goOutMode) {
     UI.renderGoOutBuilder(_localHand, s.round, _goOutMeldGroups, _goOutDiscardId, handleGoOutCardClick, handleCardReorder);
