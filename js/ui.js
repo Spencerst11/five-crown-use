@@ -1,760 +1,460 @@
-// ============================================================
-// ui.js — Five Crowns UI (v8)
-// Major changes:
-//   - Scoreboard: left side-panel tab, totals only
-//   - Final cards panel: right side-panel tab, shows melds + leftovers
-//   - Circular opponents around table-area
-//   - No gone-out display on table (moved to right panel)
-//   - Game over: ranked rows with avatars
-// ============================================================
-
-const UI = (() => {
-
-  // ── AVATAR HELPERS ───────────────────────────────────────
-  const COLOR_MAP = { red:'#e53e3e',pink:'#d53f8c',periwinkle:'#7b8cde',sage:'#68a57a',orange:'#ed8936',gold:'#d4a017' };
-  function avatarBg(av)      { return COLOR_MAP[av?.color] || COLOR_MAP.gold; }
-  function avatarEmoji(av)   { return (!av || av.animal === 'none') ? null : av.animal; }
-
-  function renderAvatarEl(avatar, size = 34) {
-    const el = document.createElement('div');
-    el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:${avatarBg(avatar)};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.55)}px;border:2px solid rgba(255,255,255,.2);flex-shrink:0;`;
-    const em = avatarEmoji(avatar);
-    if (em) { el.textContent = em; } else { el.classList.add('initials-av'); }
-    return el;
-  }
-
-  // ── CARD RENDERING ───────────────────────────────────────
-  // Map a card to its artwork filename in images/cards/
-  // Rank labels: 3-10 use the number; J/Q/K use the letter; Joker uses the suit it belongs to.
-  function cardImageFile(card) {
-    if (card.rank === 0) {
-      // Jokers are distinguished by the deck/suit color in your art.
-      // We name them joker-1..joker-? by deckIndex; default to a single joker image.
-      return 'joker.png';
-    }
-    const suit = card.suit;                 // star, heart, club, spade, diamond
-    const ri = RANK_INFO[card.rank];
-    return `${suit}-${ri.label}.png`;       // e.g. club-3.png, heart-J.png, star-K.png, diamond-10.png
-  }
-
-  function renderCard(card, opts = {}) {
-    const { selected = false, onClick = null } = opts;
-    const el = document.createElement('div');
-    el.classList.add('card', 'card-img');
-    el.dataset.cardId = card.id;
-    if (selected) el.classList.add('selected');
-    if (opts.inMeld) el.classList.add('in-meld');
-    if (opts.justDrawn) el.classList.add('just-drawn');
-    if (card.rank === 0) el.classList.add('joker');
-
-    // Build the code-drawn fallback (shown only if the image fails to load).
-    let fallbackHTML;
-    if (card.rank === 0) {
-      fallbackHTML = `<div class="card-corner"><span class="card-value" style="color:#7b2d8b">JK</span></div><div class="card-center"><div class="card-joker-label">JOKER</div></div><div class="card-corner bottom"><span class="card-value" style="color:#7b2d8b">JK</span></div>`;
-    } else {
-      const ri = RANK_INFO[card.rank];
-      const si = getSuitInfo(card.suit);
-      fallbackHTML = `<div class="card-corner"><span class="card-value ${si.cls}">${ri.label}</span><span class="card-suit-sm ${si.cls}">${si.symbol}</span></div><div class="card-center ${si.cls}" style="font-size:${ri.label==='10'?'1.1rem':'1.4rem'}">${si.symbol}</div><div class="card-corner bottom"><span class="card-value ${si.cls}">${ri.label}</span><span class="card-suit-sm ${si.cls}">${si.symbol}</span></div>`;
-    }
-
-    // The artwork image. If it 404s, we swap to the code-drawn fallback.
-    const img = document.createElement('img');
-    img.className = 'card-art';
-    img.alt = card.rank === 0 ? 'Joker' : `${RANK_INFO[card.rank].label} of ${card.suit}`;
-    img.draggable = false;
-    img.src = `images/cards/${cardImageFile(card)}`;
-    img.onerror = () => {
-      img.remove();
-      el.classList.remove('card-img');
-      el.innerHTML = fallbackHTML;
-    };
-    el.appendChild(img);
-
-    if (onClick) el.addEventListener('click', e => { e.stopPropagation(); onClick(card, el); });
-    return el;
-  }
-
-  // Mini card for panel display
-  function renderCardMini(card, leftover = false) {
-    const el = document.createElement('div');
-    el.className = 'card-mini' + (card.rank === 0 ? ' joker-mini' : '') + (leftover ? ' leftover' : '');
-    if (card.rank === 0) {
-      el.innerHTML = `<div style="font-size:.9rem">🃏</div>`;
-    } else {
-      const ri = RANK_INFO[card.rank];
-      const si = getSuitInfo(card.suit);
-      el.innerHTML = `<div class="cm-val ${si.cls}">${ri.label}</div><div class="cm-suit ${si.cls}">${si.symbol}</div>`;
-    }
-    return el;
-  }
-
-  // ── HAND ─────────────────────────────────────────────────
-  function renderHand(hand, round, selectedIds, onCardClick, onReorder) {
-    const container = document.getElementById('player-hand');
-    container.innerHTML = '';
-    container.className = 'hand-container';
-    hand.forEach((card, idx) => {
-      const el = renderCard(card, { selected: selectedIds.has(card.id), onClick: onCardClick });
-      el.setAttribute('draggable', true);
-      el.dataset.idx = idx;
-      _attachDrag(el, idx, container, onReorder);
-      _attachTouchDrag(el, idx, container, onReorder);
-      container.appendChild(el);
-    });
-  }
-
-  // ── GO-OUT BUILDER ────────────────────────────────────────
-  function renderGoOutBuilder(hand, round, meldGroups, discardId, onCardAction, onReorder) {
-    const container = document.getElementById('player-hand');
-    container.innerHTML = '';
-    container.className = 'hand-container goout-builder';
-
-    const assigned = {};
-    meldGroups.forEach((g, gi) => g.forEach(id => { assigned[id] = { type:'group', groupIdx:gi }; }));
-    if (discardId) assigned[discardId] = { type:'discard' };
-
-    hand.forEach((card, idx) => {
-      const assign = assigned[card.id];
-      const wrapper = document.createElement('div');
-      wrapper.className = 'goout-card-wrapper';
-
-      const badge = document.createElement('div');
-      badge.className = 'goout-badge';
-      if (assign?.type === 'group') {
-        badge.textContent = `G${assign.groupIdx + 1}`;
-        badge.classList.add('badge-group');
-        badge.style.background = _groupColor(assign.groupIdx);
-      } else if (assign?.type === 'discard') {
-        badge.textContent = 'DISC';
-        badge.classList.add('badge-discard');
-      } else {
-        badge.textContent = '?';
-        badge.classList.add('badge-unset');
-      }
-      wrapper.appendChild(badge);
-
-      const cardEl = renderCard(card);
-      if (assign?.type === 'group') {
-        cardEl.classList.add('goout-in-group');
-        cardEl.style.borderColor = _groupColor(assign.groupIdx);
-        cardEl.style.boxShadow = `0 0 0 2px ${_groupColor(assign.groupIdx)}55`;
-      }
-      if (assign?.type === 'discard') cardEl.classList.add('goout-is-discard');
-      if (!assign) cardEl.classList.add('goout-unset');
-
-      cardEl.addEventListener('click', e => { e.stopPropagation(); _showCardActionPicker(card, meldGroups.length, assign, onCardAction); });
-      cardEl.setAttribute('draggable', true);
-      cardEl.dataset.idx = idx;
-      _attachDrag(cardEl, idx, container, onReorder);
-      _attachTouchDrag(cardEl, idx, container, onReorder);
-      wrapper.appendChild(cardEl);
-      container.appendChild(wrapper);
-    });
-
-    updateGoOutStatus(hand, round, meldGroups, discardId);
-  }
-
-  function _groupColor(idx) {
-    return ['#2563eb','#16a34a','#9333ea','#ea580c','#0891b2','#be185d'][idx % 6];
-  }
-
-  let _pickerEl = null;
-  function _showCardActionPicker(card, numGroups, currentAssign, onCardAction) {
-    // Fill the fixed horizontal bar that lives ABOVE the hand (never over the table).
-    const bar = document.getElementById('card-assign-bar');
-    if (!bar) return;
-    bar.innerHTML = '';
-    bar.style.display = 'flex';
-    _pickerEl = bar;
-
-    const label = document.createElement('div');
-    label.className = 'picker-label';
-    label.textContent = `${getCardLabel(card)} →`;
-    bar.appendChild(label);
-
-    const discBtn = document.createElement('button');
-    discBtn.className = 'picker-btn picker-discard' + (currentAssign?.type==='discard'?' active':'');
-    discBtn.textContent = '🗑️ Discard';
-    discBtn.onclick = (e) => { e.stopPropagation(); onCardAction(card,'discard'); _hideAssignBar(); };
-    bar.appendChild(discBtn);
-
-    const sep = document.createElement('div');
-    sep.style.cssText = 'font-size:.62rem;color:#6a8a6a;padding:0 .1rem;align-self:center;white-space:nowrap;';
-    sep.textContent = '· group ·';
-    bar.appendChild(sep);
-
-    for (let g = 0; g < numGroups; g++) {
-      const isActive = currentAssign?.type==='group' && currentAssign.groupIdx===g;
-      const gBtn = document.createElement('button');
-      gBtn.className = 'picker-btn picker-group' + (isActive?' active':'');
-      gBtn.style.borderColor = _groupColor(g);
-      gBtn.style.color = isActive ? 'white' : _groupColor(g);
-      if (isActive) gBtn.style.background = _groupColor(g);
-      gBtn.textContent = `G${g+1}`;
-      const gi = g;
-      gBtn.onclick = (e) => { e.stopPropagation(); onCardAction(card,`group-${gi}`); _hideAssignBar(); };
-      bar.appendChild(gBtn);
-    }
-    if (currentAssign) {
-      const unBtn = document.createElement('button');
-      unBtn.className = 'picker-btn picker-unassign';
-      unBtn.textContent = '✕ Remove';
-      unBtn.onclick = (e) => { e.stopPropagation(); onCardAction(card,'unassign'); _hideAssignBar(); };
-      bar.appendChild(unBtn);
-    }
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'picker-btn picker-close';
-    closeBtn.textContent = 'Close';
-    closeBtn.onclick = (e) => { e.stopPropagation(); _hideAssignBar(); };
-    bar.appendChild(closeBtn);
-  }
-
-  function _hideAssignBar() {
-    const bar = document.getElementById('card-assign-bar');
-    if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
-    _pickerEl = null;
-  }
-
-  function updateGoOutStatus(hand, round, meldGroups, discardId) {
-    const statusEl = document.getElementById('goout-status-bar');
-    if (!statusEl) return;
-    const assigned = new Set();
-    meldGroups.forEach(g => g.forEach(id => assigned.add(id)));
-    if (discardId) assigned.add(discardId);
-    const unassigned = hand.filter(c => !assigned.has(c.id)).length;
-    if (unassigned > 0) {
-      statusEl.textContent = `⚠️ ${unassigned} card${unassigned>1?'s':''} unassigned`;
-      statusEl.className = 'goout-status-bar status-warn';
-    } else if (!discardId) {
-      statusEl.textContent = '⚠️ Mark one card as Discard';
-      statusEl.className = 'goout-status-bar status-warn';
-    } else {
-      statusEl.textContent = '✅ All assigned — tap SUBMIT to go out';
-      statusEl.className = 'goout-status-bar status-ok';
-    }
-  }
-
-  // ── DRAG HELPERS ─────────────────────────────────────────
-  function _attachDrag(el, idx, container, onReorder) {
-    el.addEventListener('dragstart', e => { e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',String(idx)); setTimeout(()=>el.classList.add('dragging'),0); });
-    el.addEventListener('dragend', () => { el.classList.remove('dragging'); container.querySelectorAll('.card').forEach(c=>c.classList.remove('drag-over')); });
-    el.addEventListener('dragover', e => { e.preventDefault(); container.querySelectorAll('.card').forEach(c=>c.classList.remove('drag-over')); el.classList.add('drag-over'); });
-    el.addEventListener('drop', e => { e.preventDefault(); const from=parseInt(e.dataTransfer.getData('text/plain')); const to=parseInt(el.dataset.idx); if(from!==to&&onReorder) onReorder(from,to); });
-  }
-  function _attachTouchDrag(el, idx, container, onReorder) {
-    let startX=0, isDragging=false;
-    el.addEventListener('touchstart', e => { startX=e.touches[0].clientX; isDragging=false; }, {passive:true});
-    el.addEventListener('touchmove', e => {
-      const dx=e.touches[0].clientX-startX;
-      if(!isDragging&&Math.abs(dx)>10){isDragging=true;el.classList.add('dragging');}
-      if(!isDragging)return;
-      e.preventDefault();
-      const x=e.touches[0].clientX;
-      const cards=[...container.querySelectorAll('.card:not(.dragging)')];
-      cards.forEach(c=>c.classList.remove('drag-over'));
-      const target=cards.find(c=>{const r=c.getBoundingClientRect();return x>=r.left&&x<=r.right;});
-      if(target)target.classList.add('drag-over');
-    }, {passive:false});
-    el.addEventListener('touchend', () => {
-      if(!isDragging)return;
-      el.classList.remove('dragging');
-      const overEl=container.querySelector('.card.drag-over');
-      container.querySelectorAll('.card').forEach(c=>c.classList.remove('drag-over'));
-      if(overEl&&onReorder){const toIdx=parseInt(overEl.dataset.idx);if(toIdx!==idx)onReorder(idx,toIdx);}
-    });
-  }
-
-  // ── DISCARD PILE ─────────────────────────────────────────
-  function renderDiscardTop(card, round) {
-    const container = document.getElementById('discard-top');
-    container.innerHTML = '';
-    if (!card) {
-      const empty = document.createElement('div');
-      empty.className = 'card-empty';
-      empty.textContent = '—';
-      container.appendChild(empty);
-      return;
-    }
-    const el = renderCard(card, {});
-    el.style.position = 'relative';
-    el.style.cursor = 'pointer';
-    container.appendChild(el);
-  }
-
-  // ── ACTIVE-OPPONENT-ONLY DISPLAY ──────────────────────────
-  // Show ONLY the opponent whose turn it currently is — centered near the
-  // top of the table. When it's the local player's turn (or no opponent is
-  // active), no opponent box is shown, freeing up screen space.
-  function renderOpponents(players, localPlayerId, currentTurnId) {
-    const area = document.getElementById('opponents-area');
-    area.innerHTML = '';
-    area.classList.remove('opponents-toprow');
-    area.classList.add('opponents-single');
-
-    // If it's the local player's turn, don't show any opponent box.
-    if (!currentTurnId || currentTurnId === localPlayerId) return;
-
-    const active = players.find(p => p.id === currentTurnId && p.id !== localPlayerId);
-    if (!active) return;
-
-    const zone = _buildOpponentZone(active, currentTurnId);
-    // Center it horizontally near the top of the table area.
-    zone.style.position = 'absolute';
-    zone.style.left = '50%';
-    zone.style.top = '0';
-    zone.style.transform = 'translateX(-50%)';
-    area.appendChild(zone);
-  }
-
-  // Build a single opponent box (shared by oval + top-row layouts)
-  function _buildOpponentZone(p, currentTurnId) {
-    const zone = document.createElement('div');
-    zone.className = 'opponent-zone';
-    if (p.id === currentTurnId) zone.classList.add('active-turn');
-    if (p.wentOut)              zone.classList.add('going-out');
-    if (p.disconnected)         zone.classList.add('disconnected');
-
-    const avEl = renderAvatarEl(p.avatar, 40);
-    if (!avatarEmoji(p.avatar))
-      avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-
-    const cardBacks = Math.min(p.handCount, 6);
-    let backsHtml = '';
-    for (let b = 0; b < cardBacks; b++) backsHtml += `<div class="opp-card-mini"></div>`;
-
-    const info = document.createElement('div');
-    info.className = 'opp-info';
-    info.innerHTML =
-      `<div class="opp-name">${escHtml(p.name)}${p.id===currentTurnId?' 🎯':''}${p.wentOut?' ✅':''}</div>` +
-      `<div class="opp-cards">${p.handCount} card${p.handCount!==1?'s':''} · ${p.score}pts</div>` +
-      `<div class="opp-card-backs">${backsHtml}</div>`;
-
-    zone.appendChild(avEl);
-    zone.appendChild(info);
-    return zone;
-  }
-
-  // ── YOU-ZONE GLOW ─────────────────────────────────────────
-  function updateYouZoneGlow(isMyTurn, phase) {
-    const youZone = document.getElementById('you-zone');
-    if (!youZone) return;
-    const active = isMyTurn && phase !== 'round-end' && phase !== 'game-over';
-    if (active) {
-      youZone.classList.add('you-turn-active');
-    } else {
-      youZone.classList.remove('you-turn-active');
-    }
-  }
-
-  // ── LOBBY ────────────────────────────────────────────────
-  function renderLobby(players, localPlayerId, maxPlayers) {
-    const list = document.getElementById('lobby-players-list');
-    list.innerHTML = '';
-    for (let i = 0; i < maxPlayers; i++) {
-      const p = players[i];
-      const row = document.createElement('div');
-      row.className = 'lobby-player-row';
-      if (p) {
-        const isMe = p.id === localPlayerId;
-        const avEl = renderAvatarEl(p.avatar, 38);
-        if (!avatarEmoji(p.avatar)) avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-        const nameDiv = document.createElement('div');
-        nameDiv.className = 'player-name-lobby';
-        nameDiv.textContent = p.name + (isMe ? ' (you)' : '');
-        const badge = document.createElement('div');
-        badge.className = 'player-badge';
-        badge.textContent = p.isHost ? '👑 Host' : '✓ Ready';
-        row.appendChild(avEl); row.appendChild(nameDiv); row.appendChild(badge);
-      } else {
-        row.style.opacity = '0.3';
-        row.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#2a2030;display:flex;align-items:center;justify-content:center;color:#443322">?</div><div style="color:#443322;font-family:var(--font-heading)">Waiting for player ${i+1}…</div>`;
-      }
-      list.appendChild(row);
-    }
-    const status = document.getElementById('lobby-status');
-    const filled = players.length;
-    status.textContent = filled < maxPlayers
-      ? `${filled} / ${maxPlayers} players joined. Waiting…`
-      : `All ${maxPlayers} players joined! Ready to start.`;
-    // Show host controls and keep them visible whenever lobby updates fire
-    const hostControls = document.getElementById('lobby-host-controls');
-    const startBtn = document.getElementById('start-game-btn');
-    if (hostControls && startBtn) {
-      const localIsHost = players.some(p => p.id === localPlayerId && p.isHost);
-      hostControls.style.display = localIsHost ? 'block' : 'none';
-      // Don't touch the button while a start is in progress (avoids churn)
-      if (!Network.getIsStarting || !Network.getIsStarting()) {
-        startBtn.disabled = filled < 2;
-        startBtn.textContent = filled < 2
-          ? 'Need at least 2 players'
-          : `START GAME (${filled} players)`;
-      }
-    }
-  }
-
-  // ── HEADER ───────────────────────────────────────────────
-  function updateHeader(round, phase, drawnThisTurn) {
-    document.getElementById('hdr-round').textContent = `Round ${round} / 11`;
-    let phaseText = '';
-    if (phase === 'draw')       phaseText = 'Draw a card';
-    else if (phase === 'discard')    phaseText = 'Discard a card';
-    else if (phase === 'going-out')  phaseText = drawnThisTurn ? '⚡ Final discard' : '⚡ Final draw';
-    else if (phase === 'round-end')  phaseText = 'Round over';
-    else if (phase === 'game-over')  phaseText = 'Game over!';
-    document.getElementById('hdr-phase').textContent = phaseText;
-  }
-
-  // ── TURN CONTROLS ────────────────────────────────────────
-  function updateTurnIndicator(isMyTurn, phase, drawnThisTurn) {
-    const badge = document.getElementById('turn-indicator');
-    if (badge) badge.classList.toggle('hidden', !isMyTurn || phase === 'round-end' || phase === 'game-over');
-    const goOutBtn = document.getElementById('btn-go-out');
-    if (goOutBtn) goOutBtn.style.display = (isMyTurn && phase === 'discard') ? 'inline-block' : 'none';
-  }
-
-  // ── DRAW PILE ────────────────────────────────────────────
-  function updateDrawPile(count, isMyTurn, phase, drawnThisTurn) {
-    document.getElementById('draw-count').textContent = `${count} cards`;
-    const pile = document.getElementById('draw-pile');
-    const canDraw = isMyTurn && (phase === 'draw' || (phase === 'going-out' && !drawnThisTurn));
-    pile.style.opacity = canDraw ? '1' : '0.55';
-    pile.style.cursor  = canDraw ? 'pointer' : 'default';
-  }
-
-  // ── ACTION LOG ───────────────────────────────────────────
-  function logAction(msg) {
-    const el = document.getElementById('action-log');
-    if (el) el.textContent = msg;
-  }
-
-  // ── SCOREBOARD (left panel) ───────────────────────────────
-  function renderScoreboard(players, round) {
-    const localId = Network.getLocalPlayerId();
-    const content  = document.getElementById('scoreboard-content');
-    if (!content) return;
-    const sorted = [...players].sort((a,b) => a.score - b.score);
-
-    const caption = document.createElement('div');
-    caption.className = 'score-caption';
-    const done = round - 1;
-    caption.textContent = done === 0 ? 'No rounds completed yet' : `After ${done} of 11 rounds · lowest wins`;
-
-    const t = document.createElement('table');
-    t.className = 'scoreboard-table';
-    t.innerHTML = '<tr><th>#</th><th>Player</th><th>Total</th></tr>';
-    sorted.forEach((p, i) => {
-      const tr = document.createElement('tr');
-      if (i === 0) tr.classList.add('leading-row');
-      if (p.id === localId) tr.classList.add('local-row');
-      const rank = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
-      tr.innerHTML = `<td>${rank}</td><td>${escHtml(p.name)}${p.id===localId?' <em style="opacity:.6;font-size:.75em">(you)</em>':''}</td><td><strong>${p.score}</strong></td>`;
-      t.appendChild(tr);
-    });
-
-    content.innerHTML = '';
-    content.appendChild(caption);
-    content.appendChild(t);
-  }
-
-  // ── FINAL CARDS PANEL (right panel) ──────────────────────
-  // Shows each player's laid-down melds + leftover (point) cards.
-  function renderFinalCardsPanel(players, localPlayerId) {
-    const content = document.getElementById('final-cards-content');
-    if (!content) return;
-    content.innerHTML = '';
-
-    // Players who have submitted their final cards (wentOut OR have revealedMelds)
-    const submitted = players.filter(p => p.wentOut || (p.revealedMelds && p.revealedMelds.length > 0) || (p.revealedLeftover && p.revealedLeftover.length > 0));
-    if (submitted.length === 0) {
-      const empty = document.createElement('p');
-      empty.className = 'panel-empty-msg';
-      empty.textContent = 'Cards will appear here when players go out or end their final turn.';
-      content.appendChild(empty);
-      return;
-    }
-
-    submitted.forEach(p => {
-      const block = document.createElement('div');
-      block.className = 'final-player-block';
-
-      // Header row: avatar + name + score
-      const header = document.createElement('div');
-      header.className = 'final-player-header';
-      const avEl = document.createElement('div');
-      avEl.className = 'final-player-avatar';
-      avEl.style.background = (COLOR_MAP[p.avatar?.color] || COLOR_MAP.gold);
-      const em = avatarEmoji(p.avatar);
-      if (em) {
-        avEl.textContent = em;
-      } else {
-        avEl.style.fontSize = '.65rem';
-        avEl.style.fontFamily = 'var(--font-heading)';
-        avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-      }
-      header.appendChild(avEl);
-
-      const nameEl = document.createElement('div');
-      nameEl.className = 'final-player-name';
-      nameEl.textContent = p.name + (p.id === localPlayerId ? ' (you)' : '');
-      header.appendChild(nameEl);
-
-      const scoreEl = document.createElement('div');
-      scoreEl.className = 'final-player-score' + (p.wentOut ? ' went-out' : ' scoring');
-      scoreEl.textContent = p.wentOut ? '0 pts ✅' : (p.roundScore !== undefined ? `+${p.roundScore} pts` : '');
-      header.appendChild(scoreEl);
-      block.appendChild(header);
-
-      // Melds
-      if (p.revealedMelds && p.revealedMelds.length > 0) {
-        p.revealedMelds.forEach((meld, mi) => {
-          const row = document.createElement('div');
-          row.className = 'final-meld-row';
-          const lbl = document.createElement('div');
-          lbl.className = 'final-meld-label';
-          lbl.textContent = `Meld ${mi + 1}`;
-          row.appendChild(lbl);
-          meld.forEach(card => row.appendChild(renderCardMini(card, false)));
-          block.appendChild(row);
-        });
-      }
-
-      // Leftover unmelded cards
-      if (p.revealedLeftover && p.revealedLeftover.length > 0) {
-        const row = document.createElement('div');
-        row.className = 'final-meld-row';
-        const lbl = document.createElement('div');
-        lbl.className = 'final-leftover-label';
-        lbl.textContent = `Unmelded — counts as points (${p.revealedLeftover.reduce((s,c) => s + cardScore(c, p.roundForScore || 1), 0)} pts)`;
-        row.appendChild(lbl);
-        p.revealedLeftover.forEach(card => row.appendChild(renderCardMini(card, true)));
-        block.appendChild(row);
-      }
-
-      content.appendChild(block);
-    });
-  }
-
-  // ── ROUND RESULTS ────────────────────────────────────────
-  function renderRoundResults(results, round, isGameOver, isHost, autoAdvanceSecs) {
-    document.getElementById('round-result-title').textContent =
-      isGameOver ? '🏆 Game Over!' : `Round ${round} Complete!`;
-
-    const table = document.getElementById('round-scores-table');
-    table.innerHTML = '';
-    const sorted = [...results].sort((a, b) => a.totalScore - b.totalScore);
-
-    const t = document.createElement('table');
-    t.className = 'round-score-table';
-    t.innerHTML = `<tr><th>#</th><th>Player</th><th>Round</th><th>Total</th></tr>`;
-    const localId = Network.getLocalPlayerId();
-    sorted.forEach((r, i) => {
-      const tr = document.createElement('tr');
-      if (r.roundScore === 0) tr.classList.add('went-out');
-      if (r.playerId === localId) tr.classList.add('local-player');
-      tr.innerHTML = `<td>${i+1}</td><td>${escHtml(r.name)}${r.playerId===localId?' (you)':''}${r.roundScore===0?' ✅':''}</td><td class="score-delta">+${r.roundScore}</td><td class="score-total">${r.totalScore}</td>`;
-      t.appendChild(tr);
-    });
-    table.appendChild(t);
-
-    document.getElementById('round-result-next-info').textContent =
-      isGameOver ? '' : `Next: Round ${round + 1} of 11`;
-
-    const nextBtn = document.getElementById('btn-next-round');
-    const waitArea = document.getElementById('waiting-host-area');
-
-    if (isGameOver) {
-      nextBtn.style.display = 'none';
-      if (waitArea) waitArea.style.display = 'none';
-    } else if (isHost) {
-      nextBtn.style.display = 'inline-block';
-      nextBtn.textContent = 'START NEXT ROUND →';
-      if (waitArea) waitArea.style.display = 'none';
-
-      // Auto-advance countdown if provided
-      if (autoAdvanceSecs > 0) {
-        const bar = document.getElementById('round-countdown-bar');
-        const fill = document.getElementById('round-countdown-fill');
-        if (bar && fill) {
-          bar.style.display = 'block';
-          fill.style.transition = 'none';
-          fill.style.width = '100%';
-          setTimeout(() => {
-            fill.style.transition = `width ${autoAdvanceSecs}s linear`;
-            fill.style.width = '0%';
-          }, 50);
-        }
-      }
-    } else {
-      nextBtn.style.display = 'none';
-      if (waitArea) waitArea.style.display = 'block';
-    }
-  }
-
-  // ── GAME OVER — ranked with avatars ──────────────────────
-  function renderGameOver(results, winnerId, winnerName, players) {
-    const localId = Network.getLocalPlayerId();
-    const isWinner = winnerId === localId;
-
-    document.getElementById('winner-name').textContent =
-      isWinner ? '🏆 You Win!' : `🏆 ${winnerName} Wins!`;
-    document.querySelector('.winner-sub').textContent = 'Final Standings';
-
-    const finalTable = document.getElementById('final-scores-table');
-    finalTable.innerHTML = '';
-
-    const sorted = [...results].sort((a, b) => a.totalScore - b.totalScore);
-    sorted.forEach((r, i) => {
-      const rankClass = ['rank-1','rank-2','rank-3'][i] || '';
-      const row = document.createElement('div');
-      row.className = `final-rank-row ${rankClass}` + (r.playerId === localId ? ' local-player' : '');
-
-      const rankEl = document.createElement('div');
-      rankEl.className = 'fr-rank';
-      rankEl.textContent = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.';
-      row.appendChild(rankEl);
-
-      // Avatar from players array
-      const pInfo = players ? players.find(p => p.id === r.playerId) : null;
-      const avEl = document.createElement('div');
-      avEl.className = 'fr-avatar';
-      avEl.style.background = COLOR_MAP[pInfo?.avatar?.color] || COLOR_MAP.gold;
-      const em = pInfo ? avatarEmoji(pInfo.avatar) : null;
-      if (em) {
-        avEl.textContent = em;
-      } else {
-        avEl.style.fontSize = '.7rem';
-        avEl.style.fontFamily = 'var(--font-heading)';
-        avEl.textContent = r.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-      }
-      row.appendChild(avEl);
-
-      const nameEl = document.createElement('div');
-      nameEl.className = 'fr-name';
-      nameEl.textContent = r.name + (r.playerId === localId ? ' (you)' : '');
-      row.appendChild(nameEl);
-
-      const scoreEl = document.createElement('div');
-      scoreEl.className = 'fr-score';
-      scoreEl.textContent = r.totalScore;
-      row.appendChild(scoreEl);
-
-      finalTable.appendChild(row);
-    });
-  }
-
-  // ── DEAL ANIMATION ───────────────────────────────────────
-  function playDealAnimation(numCards, onComplete) {
-    const overlay = document.getElementById('deal-overlay');
-    overlay.classList.remove('hidden');
-    overlay.innerHTML = '';
-
-    const drawPileEl   = document.getElementById('draw-pile');
-    const playerAreaEl = document.getElementById('player-hand');
-    const tableAreaEl  = document.getElementById('table-area');
-
-    if (!drawPileEl || !playerAreaEl || !tableAreaEl) {
-      if (onComplete) onComplete();
-      return;
-    }
-
-    const dpRect  = drawPileEl.getBoundingClientRect();
-    const paRect  = playerAreaEl.getBoundingClientRect();
-    const taRect  = tableAreaEl.getBoundingClientRect();
-
-    // Start cards from the CENTER of the table. We prefer the live draw-pile
-    // position, but if it hasn't laid out yet (during the start transition it
-    // can read as ~0/off-screen-left), fall back to the table-area center so
-    // cards never fly in from off screen.
-    let startCenterX = dpRect.left + dpRect.width / 2 - taRect.left;
-    let startCenterY = dpRect.top  + dpRect.height / 2 - taRect.top;
-    const drawLooksValid = dpRect.width > 0 && dpRect.left >= taRect.left - 5 &&
-                           dpRect.left <= taRect.right;
-    if (!drawLooksValid) {
-      startCenterX = taRect.width / 2;
-      startCenterY = taRect.height / 2;
-    }
-
-    const sx = startCenterX - 24;
-    const sy = startCenterY - 32;
-    const handW   = paRect.width;
-    const ey      = paRect.top - taRect.top + 8;
-
-    // Fan the dealt cards out CENTERED on the hand area.
-    // Compute the total fan width, then start half of it left of center
-    // so the cards land in the middle of the player's hand.
-    const cardGap   = 30;                                   // px between dealt cards
-    const fanWidth  = numCards <= 1 ? 0 : (numCards - 1) * cardGap;
-    const handCenterX = (paRect.left - taRect.left) + handW / 2;
-    const fanStartX = handCenterX - fanWidth / 2 - 24;      // -24 = half card width
-
-    const cardDelay = Math.min(150, 950 / numCards);
-    for (let i = 0; i < numCards; i++) {
-      const cardEl = document.createElement('div');
-      cardEl.className = 'deal-card-anim';
-      cardEl.textContent = '👑';
-      const ex = fanStartX + i * cardGap;
-      cardEl.style.setProperty('--sx', `${sx}px`);
-      cardEl.style.setProperty('--sy', `${sy}px`);
-      cardEl.style.setProperty('--ex', `${ex}px`);
-      cardEl.style.setProperty('--ey', `${ey}px`);
-      cardEl.style.setProperty('--sr', '0deg');
-      cardEl.style.setProperty('--er', `${(Math.random()-.5)*12}deg`);
-      cardEl.style.setProperty('--deal-dur', '650ms');
-      cardEl.style.setProperty('--deal-delay', `${i * cardDelay}ms`);
-      overlay.appendChild(cardEl);
-    }
-    setTimeout(() => { overlay.classList.add('hidden'); overlay.innerHTML = ''; if (onComplete) onComplete(); }, numCards * cardDelay + 700);
-  }
-
-  function animateDraw(fromDiscard) {
-    const pileEl = document.getElementById(fromDiscard ? 'discard-pile' : 'draw-pile');
-    if (!pileEl) return;
-    pileEl.style.transform = 'scale(1.08)';
-    setTimeout(() => { pileEl.style.transform = ''; }, 180);
-    setTimeout(() => {
-      const handCards = document.querySelectorAll('#player-hand .card');
-      if (handCards.length > 0) {
-        const last = handCards[handCards.length - 1];
-        last.classList.add('just-drawn');
-        setTimeout(() => last.classList.remove('just-drawn'), 500);
-      }
-    }, 100);
-  }
-
-  // ── GO-OUT ERROR ─────────────────────────────────────────
-  function showGoOutError(message) {
-    const existing = document.getElementById('goout-error-modal');
-    if (existing) existing.remove();
-    const modal = document.createElement('div');
-    modal.id = 'goout-error-modal';
-    modal.className = 'goout-error-overlay';
-    modal.innerHTML = `<div class="goout-error-box"><div class="goout-error-icon">⚠️</div><div class="goout-error-title">Invalid Go-Out</div><div class="goout-error-msg">${escHtml(message)}</div><div class="goout-error-hint">Fix your groups and try again.</div><button class="btn btn-primary goout-error-btn" onclick="document.getElementById('goout-error-modal').remove()">OK, Fix It</button></div>`;
-    document.body.appendChild(modal);
-    setTimeout(() => { if (document.getElementById('goout-error-modal')) modal.remove(); }, 6000);
-  }
-
-  // ── TOAST ─────────────────────────────────────────────────
-  let _toastTimer = null;
-  function showToast(msg, duration = 2800) {
-    const el = document.getElementById('toast');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.remove('hidden');
-    clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(() => el.classList.add('hidden'), duration);
-  }
-
-  function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  return {
-    renderCard, renderCardMini, renderHand, renderGoOutBuilder,
-    renderDiscardTop, renderOpponents, renderLobby,
-    updateHeader, updateTurnIndicator, updateDrawPile, updateYouZoneGlow, logAction,
-    renderScoreboard, renderFinalCardsPanel,
-    renderRoundResults, renderGameOver,
-    showToast, showGoOutError, updateGoOutStatus,
-    playDealAnimation, animateDraw,
-  };
-})();
+/* ============================================================
+   FIVE CROWNS — Stylesheet v8
+   ============================================================ */
+:root {
+  --gold:#f0c040; --gold-dark:#b8860b; --gold-light:#ffe88a;
+  --green-felt:#0c5227; --cream:#f8f0dc;
+  --card-bg:#fffef8; --card-shadow:rgba(0,0,0,.45);
+  --radius-card:10px;
+  --font-display:'Cinzel Decorative',serif;
+  --font-heading:'Cinzel',serif;
+  --font-body:'Lato',sans-serif;
+  --card-w:68px; --card-h:96px; --card-font:1.45rem; --card-val:.82rem;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;height:100%}
+body{height:100%;font-family:var(--font-body);background:#0a0a0f;color:var(--cream);overflow-x:hidden;overscroll-behavior:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer}
+
+/* ── SCREENS ── */
+.screen{display:none;width:100%;min-height:100dvh;position:relative}
+.screen.active{display:flex;flex-direction:column;align-items:center;justify-content:center}
+#screen-game.active{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;height:100dvh;overflow:hidden;padding:0}
+#screen-round-results.active,#screen-game-over.active,#screen-rules.active{display:flex}
+
+/* ── SPLASH ── */
+#screen-splash{background:radial-gradient(ellipse at 50% 30%,#1c1228 0%,#0a0608 100%)}
+.splash-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.crown-float{position:absolute;color:var(--gold);opacity:.07;animation:floatCrown linear infinite}
+#cf1{left:5%;font-size:clamp(3rem,8vw,5rem);animation-duration:18s}
+#cf2{left:25%;font-size:clamp(2.5rem,6vw,4rem);animation-duration:22s;animation-delay:-6s}
+#cf3{left:55%;font-size:clamp(3.5rem,9vw,6rem);animation-duration:16s;animation-delay:-3s}
+#cf4{left:75%;font-size:clamp(2rem,5vw,3.5rem);animation-duration:24s;animation-delay:-10s}
+#cf5{left:88%;font-size:clamp(3rem,7vw,4.5rem);animation-duration:20s;animation-delay:-8s}
+@keyframes floatCrown{0%{transform:translateY(110vh) rotate(-15deg);opacity:0}10%,90%{opacity:.07}100%{transform:translateY(-20vh) rotate(15deg);opacity:0}}
+.splash-content{position:relative;z-index:25;text-align:center;padding:clamp(1rem,4vw,3rem);width:100%;max-width:640px}
+.crown-title{font-size:clamp(3rem,10vw,5rem);animation:pulse 2.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.game-title{font-family:var(--font-display);font-size:clamp(2rem,8vw,5rem);letter-spacing:.1em;background:linear-gradient(135deg,var(--gold-light),var(--gold),var(--gold-dark));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:.2em 0 .1em;line-height:1.2}
+.game-subtitle{font-family:var(--font-heading);font-size:clamp(.8rem,2.5vw,1.1rem);color:#b0a090;letter-spacing:.2em;text-transform:uppercase;margin-bottom:.8rem}
+.suit-row{font-size:clamp(1.2rem,4vw,1.6rem);letter-spacing:.4em;margin:.6rem 0 1.5rem;color:var(--gold)}
+.splash-buttons{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap}
+.splash-tagline{margin-top:1.2rem;color:#7a6a5a;font-size:clamp(.72rem,2vw,.85rem);letter-spacing:.15em;text-transform:uppercase}
+
+/* ── BUTTONS ── */
+.btn{font-family:var(--font-heading);letter-spacing:.1em;text-transform:uppercase;border:none;cursor:pointer;transition:all .18s ease;border-radius:8px;font-weight:600;user-select:none}
+.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#1a1000;padding:clamp(.7rem,2vw,.9rem) clamp(1.2rem,4vw,2.2rem);font-size:clamp(.85rem,2.5vw,1rem);box-shadow:0 4px 18px rgba(240,192,64,.35)}
+.btn-primary:hover,.btn-primary:active{transform:translateY(-2px);box-shadow:0 6px 24px rgba(240,192,64,.55)}
+.btn-secondary{background:transparent;color:var(--gold);padding:clamp(.7rem,2vw,.9rem) clamp(1.2rem,4vw,2.2rem);font-size:clamp(.85rem,2.5vw,1rem);border:2px solid var(--gold)}
+.btn-secondary:hover{background:rgba(240,192,64,.12)}
+.btn-ghost{background:transparent;color:#887766;padding:.6rem 1.2rem;font-size:.88rem;border:1px solid #443322}
+.btn-ghost:hover,.btn-ghost:active{color:var(--cream);border-color:var(--gold)}
+.btn-small{padding:.38rem .85rem;font-size:.76rem}
+.btn-tiny{padding:.28rem .6rem;font-size:.7rem}
+.btn-success{background:#22863a;color:white;padding:.6rem 1.4rem;font-size:.86rem;border-radius:8px}
+.btn-success:hover,.btn-success:active{background:#2ea043}
+.btn-warning{background:#856404;color:white;padding:.5rem .9rem;font-size:.8rem;border-radius:8px}
+.btn-warning:hover{background:#a07a10}
+.btn-danger{background:#b91c1c;color:white;padding:.5rem .9rem;font-size:.8rem;border-radius:8px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none !important}
+
+/* ── MENU ── */
+#screen-main-menu{background:radial-gradient(ellipse at center,#1a1228 0%,#080610 100%)}
+.menu-bg{position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23f0c040' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E")}
+.menu-content{position:relative;z-index:2;text-align:center;padding:2rem 1rem;max-width:900px;width:100%}
+.screen-title{font-family:var(--font-display);font-size:clamp(1.5rem,5vw,2.8rem);color:var(--gold);letter-spacing:.1em;margin-bottom:2rem}
+.menu-cards{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.5rem}
+.menu-card{background:rgba(255,255,255,.04);border:1px solid rgba(240,192,64,.2);border-radius:14px;padding:1.5rem 1.2rem;width:clamp(160px,30vw,220px);cursor:pointer;transition:all .2s ease;text-align:center}
+.menu-card:hover,.menu-card:active{border-color:var(--gold);background:rgba(240,192,64,.08);transform:translateY(-3px)}
+.menu-card-icon{font-size:2.2rem;margin-bottom:.6rem}
+.menu-card h3{font-family:var(--font-heading);color:var(--gold);margin-bottom:.4rem;font-size:1rem}
+.menu-card p{font-size:.82rem;color:#7a6a5a;line-height:1.5}
+
+/* ── FORMS ── */
+.form-content{width:100%;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:1.5rem 1rem;overflow-y:auto;background:radial-gradient(ellipse at center,#111820 0%,#060a0e 100%)}
+.form-box{background:rgba(255,255,255,.04);border:1px solid rgba(240,192,64,.2);border-radius:16px;padding:clamp(1.2rem,4vw,2.5rem);width:100%;max-width:480px;display:flex;flex-direction:column;gap:.9rem;margin:auto}
+.form-box label{font-family:var(--font-heading);font-size:.82rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:-.4rem}
+.optional{color:#665544;font-size:.8em}
+.form-box input,.form-box select{background:rgba(0,0,0,.4);border:1px solid rgba(240,192,64,.25);border-radius:8px;color:var(--cream);padding:.7rem 1rem;font-size:1rem;font-family:var(--font-body);outline:none;transition:border-color .2s;-webkit-appearance:none}
+.form-box input:focus,.form-box select:focus{border-color:var(--gold)}
+.form-box select option{background:#1a1428}
+
+/* ── AVATAR PICKER ── */
+.avatar-picker{background:rgba(0,0,0,.3);border:1px solid rgba(240,192,64,.15);border-radius:12px;padding:.9rem;display:flex;flex-direction:column;gap:.55rem}
+.avatar-section-label{font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);opacity:.7}
+.avatar-animals{display:flex;gap:.4rem;flex-wrap:wrap}
+.avatar-opt{display:flex;flex-direction:column;align-items:center;gap:.12rem;cursor:pointer;padding:.3rem .4rem;border-radius:8px;border:2px solid transparent;transition:all .15s;font-size:clamp(1.1rem,3.5vw,1.4rem);min-width:44px}
+.avatar-opt span{font-size:.56rem;color:#887766;font-family:var(--font-body);text-transform:uppercase}
+.avatar-opt:hover,.avatar-opt:active{border-color:rgba(240,192,64,.4);background:rgba(240,192,64,.06)}
+.avatar-opt.selected{border-color:var(--gold);background:rgba(240,192,64,.12)}
+.avatar-colors{display:flex;gap:.5rem;flex-wrap:wrap}
+.color-opt{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s;flex-shrink:0}
+.color-opt:hover,.color-opt:active{transform:scale(1.2)}
+.color-opt.selected{border-color:white;box-shadow:0 0 0 2px rgba(255,255,255,.5);transform:scale(1.2)}
+.avatar-preview-row{display:flex;align-items:center;gap:.7rem;margin-top:.2rem}
+.avatar-preview{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;border:2px solid rgba(255,255,255,.2);flex-shrink:0}
+.avatar-preview-label{font-size:.78rem;color:#7a6a5a;font-style:italic}
+
+/* ── LOBBY ── */
+#screen-lobby{background:radial-gradient(ellipse at center,#101820 0%,#060a10 100%);padding:1.5rem 1rem;justify-content:flex-start;padding-top:2rem}
+.lobby-content{text-align:center;max-width:560px;width:100%}
+.room-code-display{background:rgba(0,0,0,.4);border:2px solid var(--gold);border-radius:16px;padding:1.2rem;margin:1.2rem 0}
+.room-label{font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:#887766;margin-bottom:.4rem}
+.room-code{font-family:var(--font-display);font-size:clamp(2rem,8vw,3rem);color:var(--gold);letter-spacing:.4em;margin:.3rem 0 .7rem}
+.lobby-players{display:flex;flex-direction:column;gap:.5rem;margin:1.2rem 0}
+.lobby-player-row{display:flex;align-items:center;gap:.7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.6rem 1rem}
+.player-name-lobby{flex:1;text-align:left;font-family:var(--font-heading);font-size:.9rem}
+.player-badge{font-size:.72rem;color:var(--gold);letter-spacing:.08em}
+.lobby-status{color:#7a6a5a;font-size:.9rem;margin:.4rem 0 1rem;font-style:italic}
+
+/* ═══════════════════════════════════════════
+   GAME TABLE
+═══════════════════════════════════════════ */
+#screen-game{
+  background-color:#0c5227;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg stroke='%23083d1b' stroke-opacity='0.5' stroke-width='1.4' fill='none'%3E%3Cpath d='M80 4 L156 80 L80 156 L4 80 Z'/%3E%3Cpath d='M80 -76 L156 0 M80 -76 L4 0 M156 160 L80 236 M4 160 L80 236'/%3E%3C/g%3E%3Cg fill='%23083d1b' fill-opacity='0.46'%3E%3C!-- center heart --%3E%3Cpath d='M80 66c-5.5-8-16-5.3-16 3 0 8 16 17 16 17s16-9 16-17c0-8.3-10.5-11-16-3z'/%3E%3C!-- top spade (and wrap bottom) --%3E%3Cpath d='M80 -12c-7 6.3-14 11.2-14 17.5 0 4.6 4.6 7 9.1 5.3-1.1 3.1-3.1 5.5-5.5 7h20.8c-2.4-1.5-4.4-3.9-5.5-7 4.5 1.7 9.1-.7 9.1-5.3 0-6.3-7-11.2-14-17.5z'/%3E%3Cpath d='M80 148c-7 6.3-14 11.2-14 17.5 0 4.6 4.6 7 9.1 5.3-1.1 3.1-3.1 5.5-5.5 7h20.8c-2.4-1.5-4.4-3.9-5.5-7 4.5 1.7 9.1-.7 9.1-5.3 0-6.3-7-11.2-14-17.5z'/%3E%3C!-- left club (and wrap right) --%3E%3Cpath d='M0 66c-3.6 0-6.5 2.9-6.5 6.5 0 2.2 1.1 4.1 2.8 5.3-1.9-.7-4.1-.3-5.6 1.2-2.5 2.5-2.5 6.6 0 9.1 2.2 2.2 5.5 2.5 8 .8-.6 2.2-1.8 4.1-3.5 5.6h9.6c-1.7-1.5-2.9-3.4-3.5-5.6 2.5 1.7 5.8 1.4 8-.8 2.5-2.5 2.5-6.6 0-9.1-1.5-1.5-3.7-1.9-5.6-1.2 1.7-1.2 2.8-3.1 2.8-5.3C6.5 68.9 3.6 66 0 66z'/%3E%3Cpath d='M160 66c-3.6 0-6.5 2.9-6.5 6.5 0 2.2 1.1 4.1 2.8 5.3-1.9-.7-4.1-.3-5.6 1.2-2.5 2.5-2.5 6.6 0 9.1 2.2 2.2 5.5 2.5 8 .8-.6 2.2-1.8 4.1-3.5 5.6h9.6c-1.7-1.5-2.9-3.4-3.5-5.6 2.5 1.7 5.8 1.4 8-.8 2.5-2.5 2.5-6.6 0-9.1-1.5-1.5-3.7-1.9-5.6-1.2 1.7-1.2 2.8-3.1 2.8-5.3C166.5 68.9 163.6 66 160 66z'/%3E%3C!-- diamonds at top/bottom cross points --%3E%3Cpath d='M80 0l7 12-7 12-7-12z'/%3E%3Cpath d='M80 136l7 12-7 12-7-12z'/%3E%3C/g%3E%3Cg fill='%23083d1b' fill-opacity='0.4'%3E%3C!-- dotted accents along the diagonal lattice --%3E%3Ccircle cx='40' cy='40' r='2'/%3E%3Ccircle cx='120' cy='40' r='2'/%3E%3Ccircle cx='40' cy='120' r='2'/%3E%3Ccircle cx='120' cy='120' r='2'/%3E%3Ccircle cx='60' cy='20' r='1.6'/%3E%3Ccircle cx='100' cy='20' r='1.6'/%3E%3Ccircle cx='20' cy='60' r='1.6'/%3E%3Ccircle cx='140' cy='60' r='1.6'/%3E%3Ccircle cx='20' cy='100' r='1.6'/%3E%3Ccircle cx='140' cy='100' r='1.6'/%3E%3Ccircle cx='60' cy='140' r='1.6'/%3E%3Ccircle cx='100' cy='140' r='1.6'/%3E%3Ccircle cx='80' cy='40' r='1.4'/%3E%3Ccircle cx='40' cy='80' r='1.4'/%3E%3Ccircle cx='120' cy='80' r='1.4'/%3E%3Ccircle cx='80' cy='120' r='1.4'/%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 50% 45%,rgba(24,110,66,.24) 0%,rgba(0,0,0,.24) 100%);
+  background-size:88px 88px,cover;
+  background-repeat:repeat,no-repeat;
+}
+
+/* ── HEADER ── */
+#game-header{display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.6);padding:.4rem clamp(.5rem,2vw,1rem);border-bottom:1px solid rgba(240,192,64,.2);flex-shrink:0;z-index:10;padding-top:max(.4rem,env(safe-area-inset-top,.4rem))}
+.game-info-left,.game-info-right{display:flex;gap:.5rem;align-items:center}
+.game-title-small{font-family:var(--font-display);font-size:clamp(.6rem,2vw,.85rem);color:var(--gold);letter-spacing:.15em}
+#hdr-round{color:#b0a080;font-family:var(--font-heading);font-size:clamp(.68rem,2vw,.82rem)}
+#hdr-phase{color:#a0c0a0;font-family:var(--font-heading);font-size:clamp(.62rem,2vw,.78rem)}
+
+/* ══════════════════════════════════════════
+   SIDE TABS + PANELS
+   Left = scoreboard, Right = final cards
+══════════════════════════════════════════ */
+.side-tab{
+  position:fixed;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:80;
+  background:rgba(0,0,0,.7);
+  border:1px solid rgba(240,192,64,.35);
+  border-radius:0 10px 10px 0;
+  padding:.5rem .32rem;
+  cursor:pointer;
+  transition:background .2s, border-color .2s;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  box-shadow:2px 0 12px rgba(0,0,0,.5);
+}
+.side-tab:hover,.side-tab:active{background:rgba(30,30,30,.9);border-color:var(--gold)}
+.score-tab-left{left:0;border-radius:0 10px 10px 0}
+.cards-tab-right{right:0;border-radius:10px 0 0 10px}
+.tab-label-vertical{
+  font-family:var(--font-heading);
+  font-size:.62rem;
+  letter-spacing:.06em;
+  color:var(--gold);
+  text-transform:uppercase;
+  display:block;
+  text-align:center;
+  line-height:1.25;
+  font-weight:700;
+}
+
+.side-panel{
+  position:fixed;
+  top:0; bottom:0;
+  width:clamp(240px,72vw,320px);
+  background:rgba(10,12,18,.96);
+  border:1px solid rgba(240,192,64,.25);
+  z-index:90;
+  display:flex;
+  flex-direction:column;
+  transition:transform .28s cubic-bezier(.4,0,.2,1);
+  overflow:hidden;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.score-panel-left{left:0;border-radius:0 14px 14px 0;transform:translateX(-110%)}
+.cards-panel-right{right:0;border-radius:14px 0 0 14px;transform:translateX(110%)}
+.side-panel.open{transform:translateX(0) !important}
+.side-panel.hidden{display:flex} /* always flex, just off-screen */
+
+.side-panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.7rem .9rem;
+  background:rgba(0,0,0,.4);
+  border-bottom:1px solid rgba(240,192,64,.2);
+  font-family:var(--font-heading);
+  font-size:.85rem;
+  color:var(--gold);
+  letter-spacing:.1em;
+  flex-shrink:0;
+}
+.side-panel-close{background:none;border:none;color:#887766;font-size:1.1rem;cursor:pointer;padding:.2rem .4rem;transition:color .15s}
+.side-panel-close:hover{color:var(--cream)}
+
+/* Scoreboard content */
+#scoreboard-content{overflow-y:auto;flex:1;padding:.6rem .7rem}
+.scoreboard-table{width:100%;border-collapse:collapse}
+.scoreboard-table th{font-family:var(--font-heading);color:var(--gold);font-size:.72rem;letter-spacing:.1em;padding:.35rem .45rem;border-bottom:1px solid rgba(240,192,64,.2);text-align:center}
+.scoreboard-table td{padding:.45rem .45rem;font-size:.88rem;border-bottom:1px solid rgba(255,255,255,.05);text-align:center}
+.scoreboard-table .leading-row td{color:var(--gold);font-weight:700}
+.scoreboard-table .local-row td{color:#88ddaa}
+.score-caption{font-size:.75rem;color:#7a8a9a;font-style:italic;text-align:center;margin-bottom:.6rem}
+
+/* Final-cards panel content */
+#final-cards-content{overflow-y:auto;flex:1;padding:.5rem .6rem;display:flex;flex-direction:column;gap:.6rem}
+.panel-empty-msg{font-size:.8rem;color:#5a7a5a;text-align:center;padding:1rem .5rem;font-style:italic}
+.final-player-block{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.5rem .6rem}
+.final-player-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
+.final-player-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;border:1px solid rgba(255,255,255,.2);flex-shrink:0}
+.final-player-name{font-family:var(--font-heading);font-size:.78rem;color:var(--cream);flex:1}
+.final-player-score{font-family:var(--font-heading);font-size:.78rem}
+.final-player-score.went-out{color:#22c55e}
+.final-player-score.scoring{color:#f87171}
+.final-meld-row{display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.3rem;align-items:center}
+.final-meld-label{font-size:.58rem;font-family:var(--font-heading);color:#6a9a6a;text-transform:uppercase;letter-spacing:.08em;width:100%;margin-bottom:1px}
+.final-leftover-label{font-size:.58rem;font-family:var(--font-heading);color:#c05050;text-transform:uppercase;letter-spacing:.08em;width:100%;margin-bottom:1px}
+/* Mini cards inside panels */
+.card-mini{width:34px;height:48px;background:var(--card-bg);border:1px solid #ccc;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:.6rem;flex-shrink:0}
+.card-mini .cm-val{font-size:.58rem;font-weight:700;line-height:1}
+.card-mini .cm-suit{font-size:.55rem;line-height:1}
+.card-mini.joker-mini{background:linear-gradient(135deg,#fff8e8,#fff0c8)}
+.card-mini.leftover{opacity:.8;box-shadow:0 0 4px rgba(239,68,68,.4);border-color:#ef4444}
+
+/* ── TABLE AREA ── */
+#table-area{
+  position:relative;
+  flex:1;
+  width:100%;
+  overflow:hidden;
+  min-height:0;
+}
+
+/* opponents placed absolutely by JS */
+#opponents-area{position:absolute;inset:0;pointer-events:none}
+/* narrow-phone fallback: simple wrapped row across the top */
+#opponents-area.opponents-toprow{
+  display:flex;flex-wrap:wrap;justify-content:center;align-content:flex-start;
+  gap:.4rem;padding:.4rem .3rem 0;
+  left:0;right:0;top:0;bottom:auto;
+  max-height:42%;overflow:hidden;
+  pointer-events:none;
+}
+#opponents-area.opponents-toprow .opponent-zone{pointer-events:all}
+/* single active-opponent display: compact, pinned near top-center */
+#opponents-area.opponents-single{display:block;pointer-events:none}
+#opponents-area.opponents-single .opponent-zone{pointer-events:all;margin-top:.4rem}
+.opponent-zone{
+  position:absolute;
+  pointer-events:all;
+  background:rgba(0,0,0,.5);
+  border:2px solid rgba(255,255,255,.16);
+  border-radius:12px;
+  padding:.45rem .7rem;
+  display:flex;align-items:center;gap:.6rem;
+  min-width:150px;max-width:210px;
+  transition:border-color .25s,box-shadow .25s;
+}
+.opponent-zone.active-turn{
+  border-color:#ffd633 !important;
+  background:rgba(40,32,0,.55);
+  box-shadow:0 0 0 3px rgba(255,214,51,.6),0 0 22px 4px rgba(255,214,51,.5);
+  animation:turnGlow 1.3s ease-in-out infinite;
+}
+.opponent-zone.going-out{border-color:#22863a}
+.opponent-zone.disconnected{border-color:rgba(239,68,68,.4);opacity:.6}
+@keyframes turnGlow{
+  0%,100%{box-shadow:0 0 0 3px rgba(255,214,51,.55),0 0 18px 3px rgba(255,214,51,.4)}
+  50%{box-shadow:0 0 0 4px rgba(255,214,51,.85),0 0 30px 7px rgba(255,214,51,.65)}
+}
+.opp-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;border:2px solid rgba(255,255,255,.22);flex-shrink:0}
+.opp-info{display:flex;flex-direction:column;gap:.12rem;min-width:0}
+.opp-name{font-size:.82rem;font-family:var(--font-heading);color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+.opp-cards{font-size:.68rem;color:#8ab88a}
+.opp-card-backs{display:flex;gap:2px;margin-top:3px}
+.opp-card-mini{width:11px;height:16px;background:linear-gradient(135deg,#1a0a2e,#2a1040);border:1px solid rgba(240,192,64,.4);border-radius:2px}
+
+/* piles + action log */
+#table-center{display:flex;justify-content:center;align-items:center;gap:clamp(1.5rem,6vw,4rem);padding:.3rem;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;width:max-content;max-width:90vw}
+/* On narrow phones opponents sit in a top row, so drop the piles to lower-center */
+@media(max-width:599px){#table-center{top:64%}}
+/* DESKTOP / TABLET: firmly center the piles in the table area */
+@media(min-width:600px){
+  #table-area{display:flex;align-items:center;justify-content:center}
+  #table-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0}
+}
+.pile{display:flex;flex-direction:column;align-items:center;gap:.3rem;cursor:pointer;transition:transform .15s;z-index:5}
+.pile:hover,.pile:active{transform:scale(1.05)}
+.pile-cards{position:relative;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
+.card-back{background:linear-gradient(135deg,#1a0a2e,#2a1040);border:2px solid rgba(240,192,64,.5);border-radius:var(--radius-card);display:flex;align-items:center;justify-content:center;font-size:clamp(1.2rem,3.5vw,1.7rem);box-shadow:3px 3px 10px var(--card-shadow);position:absolute;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
+.stack-1{top:0;left:0;z-index:3}.stack-2{top:-3px;left:-3px;z-index:2;opacity:.85}.stack-3{top:-6px;left:-6px;z-index:1;opacity:.7}
+.pile-label{font-family:var(--font-heading);font-size:clamp(.68rem,2vw,.85rem);color:#ffe88a;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+.pile-count{font-size:.74rem;color:#cfe3cf;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.card-empty{border:2px dashed rgba(255,255,255,.15);border-radius:var(--radius-card);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:1.2rem;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
+#action-log-wrapper{position:absolute;bottom:6px;left:0;right:0;text-align:center;pointer-events:none;z-index:4}
+#action-log{font-size:clamp(.6rem,1.8vw,.75rem);color:#8aaa8a;font-style:italic;padding:0 4rem}
+
+/* ── PLAYER AREA (bottom) ── */
+#player-area{
+  background:rgba(0,0,0,.5);
+  border-top:1px solid rgba(240,192,64,.15);
+  padding:.35rem .55rem max(.45rem,env(safe-area-inset-bottom,.45rem));
+  flex-shrink:0;
+  position:relative;
+  z-index:20;
+}
+
+/* You-zone */
+#you-zone{display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;flex-wrap:wrap;border:2px solid transparent;border-radius:12px;padding:.25rem .4rem;transition:border-color .25s,box-shadow .25s}
+.you-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;border:2px solid rgba(255,255,255,.2);flex-shrink:0;background:#d4a017}
+.you-info{display:flex;flex-direction:column;gap:.02rem;min-width:0}
+.you-name{font-family:var(--font-heading);color:var(--gold);font-size:clamp(.75rem,2.5vw,.88rem);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px}
+.you-score{font-size:.66rem;color:#8ab88a}
+#you-zone.you-turn-active{border-color:#ffd633;box-shadow:0 0 0 3px rgba(255,214,51,.5),0 0 22px 3px rgba(255,214,51,.45);animation:turnGlow 1.3s ease-in-out infinite}
+.turn-badge{background:#22863a;color:white;padding:.16rem .55rem;border-radius:12px;font-size:clamp(.62rem,1.8vw,.72rem);font-family:var(--font-heading);letter-spacing:.08em;animation:turnPulse 1.2s ease-in-out infinite}
+.turn-badge.hidden{display:none}
+@keyframes turnPulse{0%,100%{opacity:1}50%{opacity:.6}}
+#action-buttons{display:flex;gap:.35rem;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+
+/* Go-out builder bar */
+#goout-builder-bar{display:flex;flex-direction:column;gap:.25rem;padding:.3rem .5rem .2rem;background:rgba(0,0,0,.35);border-top:1px solid rgba(240,192,64,.12)}
+.goout-controls-row{display:flex;gap:.35rem;flex-wrap:wrap;justify-content:center}
+.goout-status-bar{font-size:.7rem;font-family:var(--font-heading);text-align:center;padding:.2rem .5rem;border-radius:6px;letter-spacing:.05em}
+.status-ok{background:rgba(34,134,58,.2);color:#4ade80;border:1px solid rgba(34,134,58,.3)}
+.status-warn{background:rgba(180,100,0,.2);color:#fbbf24;border:1px solid rgba(180,100,0,.3)}
+
+/* Hand */
+.hand-container{display:flex;flex-wrap:wrap;gap:clamp(3px,1vw,6px);justify-content:center;min-height:clamp(82px,16vh,108px);padding:2px;user-select:none;overflow-y:auto;max-height:clamp(108px,26vh,190px)}
+.hand-hint{font-size:.58rem;color:#3a5a3a;text-align:center;margin-top:.1rem;font-style:italic}
+
+/* Go-out builder card wrapper */
+.hand-container.goout-builder{align-items:flex-end;gap:clamp(4px,1.5vw,8px);max-height:clamp(130px,30vh,200px)}
+.goout-card-wrapper{display:flex;flex-direction:column;align-items:center;gap:2px}
+.goout-badge{font-size:.58rem;font-family:var(--font-heading);font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:.1rem .3rem;border-radius:4px;color:white;min-width:34px;text-align:center}
+.badge-group{background:#2563eb}.badge-discard{background:#b91c1c}.badge-unset{background:#4a4a5a;color:#aaa}
+.goout-in-group{border-color:#3b82f6 !important;box-shadow:0 0 6px rgba(59,130,246,.5) !important}
+.goout-is-discard{border-color:#ef4444 !important;box-shadow:0 0 6px rgba(239,68,68,.5) !important;opacity:.75}
+.goout-unset{opacity:.7}
+
+/* Card action picker */
+/* Card-assignment bar: horizontal, sits ABOVE the hand inside the player area */
+#card-assign-bar{
+  display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:.4rem;
+  background:#1a1e2a;
+  border:1px solid rgba(240,192,64,.4);
+  border-radius:10px;
+  padding:.45rem .6rem;
+  margin:.3rem auto;
+  max-width:100%;
+  box-shadow:0 2px 12px rgba(0,0,0,.5);
+}
+.picker-label{font-family:var(--font-heading);font-size:.74rem;color:var(--gold);text-align:center;letter-spacing:.06em;margin:0;padding:0 .35rem 0 0;border:none;white-space:nowrap;align-self:center;font-weight:700}
+.picker-btn{font-family:var(--font-heading);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:.32rem .55rem;cursor:pointer;background:rgba(255,255,255,.05);color:var(--cream);text-align:center;transition:all .15s}
+.picker-btn:hover,.picker-btn:active{background:rgba(255,255,255,.12)}
+.picker-btn.active{background:rgba(240,192,64,.15);border-color:var(--gold);color:var(--gold)}
+.picker-discard{border-color:rgba(239,68,68,.4);color:#f87171}
+.picker-discard.active{background:rgba(239,68,68,.2);border-color:#ef4444;color:#ef4444}
+.picker-unassign{color:#887766}.picker-close{color:#554444;font-size:.66rem}
+
+/* ── PLAYING CARDS ── */
+.card{width:var(--card-w,68px);height:var(--card-h,96px);background:var(--card-bg);border:2px solid #ddd;border-radius:var(--radius-card);cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;padding:3px 4px;box-shadow:2px 3px 8px var(--card-shadow);transition:transform .15s,box-shadow .15s,border-color .15s;position:relative;user-select:none;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* When a card shows artwork, the image fills the whole card face */
+.card.card-img{padding:0;overflow:hidden;background:var(--card-bg)}
+.card-art{width:100%;height:100%;object-fit:cover;border-radius:calc(var(--radius-card) - 2px);display:block;pointer-events:none;-webkit-user-drag:none}
+.card:hover{transform:translateY(-6px);box-shadow:2px 8px 18px rgba(0,0,0,.6)}
+.card.selected{transform:translateY(-12px);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold),2px 12px 22px rgba(0,0,0,.7)}
+.card.in-meld{border-color:#22863a;box-shadow:0 0 5px rgba(34,134,58,.5)}
+.card.drag-over{border-color:var(--gold);background:rgba(255,248,220,.95)}
+.card.dragging{opacity:.35;transform:scale(.94)}
+.card.joker{background:linear-gradient(135deg,#fff8e8,#fff0c8)}
+.card-corner{display:flex;flex-direction:column;align-items:center;line-height:1}
+.card-corner.bottom{transform:rotate(180deg)}
+.card-value{font-size:var(--card-val,.82rem);font-weight:700;line-height:1}
+.card-suit-sm{font-size:.58rem}
+.card-center{display:flex;align-items:center;justify-content:center;font-size:var(--card-font,1.45rem);flex:1}
+.card-joker-center{font-size:1.2rem;text-align:center}
+.card-joker-label{font-size:.52rem;font-family:var(--font-heading);text-align:center;color:#7b2d8b;font-weight:700;letter-spacing:.08em}
+.suit-star{color:#7b2d8b}.suit-heart{color:#c0392b}.suit-club{color:#1a1a1a}.suit-spade{color:#1a1a1a}.suit-diamond{color:#c0392b}
+@keyframes drawPulse{0%{box-shadow:0 0 0 0 rgba(240,192,64,.6)}50%{box-shadow:0 0 0 10px rgba(240,192,64,0)}100%{box-shadow:0 0 0 0 rgba(240,192,64,0)}}
+.card.just-drawn{animation:drawPulse .45s ease-out}
+
+/* ── DEAL ANIMATION ── */
+.deal-overlay{position:absolute;inset:0;z-index:50;pointer-events:none;overflow:hidden}
+.deal-overlay.hidden{display:none}
+.deal-card-anim{position:absolute;width:clamp(40px,7vw,56px);height:clamp(56px,10vw,80px);background:linear-gradient(135deg,#1a0a2e,#2a1040);border:2px solid rgba(240,192,64,.6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:clamp(.9rem,2.5vw,1.3rem);color:var(--gold);box-shadow:3px 3px 14px rgba(0,0,0,.7);left:0;top:0;animation:dealSpin var(--deal-dur,.45s) var(--deal-delay,0s) cubic-bezier(.25,.46,.45,.94) both}
+@keyframes dealSpin{0%{transform:translate(var(--sx,0px),var(--sy,0px)) rotate(var(--sr,0deg)) scale(.5);opacity:0}15%{opacity:1}60%{transform:translate(calc(var(--sx,0px) + (var(--ex,0px) - var(--sx,0px))*.6),calc(var(--sy,0px) + (var(--ey,0px) - var(--sy,0px))*.6)) rotate(calc(var(--sr,0deg) + 360deg)) scale(.9)}100%{transform:translate(var(--ex,0px),var(--ey,0px)) rotate(var(--er,0deg)) scale(1);opacity:1}}
+
+/* ── GO-OUT ERROR ── */
+.goout-error-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(6px);animation:fadeIn .15s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.goout-error-box{background:#1a1010;border:2px solid #ef4444;border-radius:16px;padding:1.8rem;max-width:400px;width:90%;text-align:center;box-shadow:0 0 40px rgba(239,68,68,.3);animation:shakeIn .3s ease}
+@keyframes shakeIn{0%{transform:scale(.9) translateY(10px)}60%{transform:scale(1.02) translateY(-2px)}100%{transform:scale(1)}}
+.goout-error-icon{font-size:2.2rem;margin-bottom:.4rem}
+.goout-error-title{font-family:var(--font-heading);color:#f87171;font-size:1rem;letter-spacing:.1em;margin-bottom:.5rem}
+.goout-error-msg{color:#f8f0dc;font-size:.86rem;line-height:1.6;margin-bottom:.4rem;white-space:pre-line}
+.goout-error-hint{color:#7a8a7a;font-size:.78rem;font-style:italic;margin-bottom:1rem}
+.goout-error-btn{width:100%}
+
+/* ── ROUND RESULTS ── */
+#screen-round-results{background:radial-gradient(ellipse at center,#121820 0%,#060810 100%);padding:1.5rem 1rem 2.5rem;align-items:center;justify-content:flex-start;overflow-y:auto;padding-top:2rem}
+.results-content{max-width:520px;width:100%;text-align:center;padding-bottom:1.5rem}
+.countdown-bar{width:100%;height:6px;background:rgba(255,255,255,.1);border-radius:3px;margin:.8rem 0;overflow:hidden}
+.countdown-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-dark));border-radius:3px;width:100%;transition:width linear}
+.round-score-table{width:100%;border-collapse:collapse;margin:1rem 0}
+.round-score-table th{font-family:var(--font-heading);color:var(--gold);font-size:.76rem;letter-spacing:.12em;padding:.4rem .7rem;border-bottom:1px solid rgba(240,192,64,.2);text-align:left}
+.round-score-table td{padding:.45rem .7rem;border-bottom:1px solid rgba(255,255,255,.05);font-size:.88rem}
+.round-score-table tr.went-out td{color:#22863a;font-weight:700}
+.round-score-table tr.local-player td{color:var(--gold)}
+.score-delta{color:#c05050;font-size:.8rem}.score-total{font-family:var(--font-heading)}
+#round-result-next-info{color:#7a8a9a;font-size:.86rem;margin:.7rem 0;font-style:italic}
+#btn-next-round{margin-top:.8rem}
+.waiting-host-msg{color:#7a8a9a;font-size:.88rem;font-style:italic;margin-top:.8rem;padding:.7rem;background:rgba(255,255,255,.04);border-radius:10px}
+
+/* ── GAME OVER ── */
+#screen-game-over{background:radial-gradient(ellipse at 50% 30%,#1c1228 0%,#0a0608 100%);align-items:center;justify-content:flex-start;padding:2rem 1rem;overflow-y:auto}
+.gameover-content{text-align:center;max-width:500px;width:100%}
+.trophy{font-size:clamp(3rem,12vw,5rem);animation:trophyBounce 1.2s ease-in-out infinite}
+@keyframes trophyBounce{0%,100%{transform:scale(1)}50%{transform:scale(1.15) translateY(-6px)}}
+.winner-title{font-family:var(--font-display);font-size:clamp(1.5rem,5vw,3rem);background:linear-gradient(135deg,var(--gold-light),var(--gold),var(--gold-dark));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:.4rem 0 .2rem;line-height:1.2}
+.winner-sub{color:#7a6a5a;font-style:italic;margin-bottom:1.2rem;font-size:.9rem}
+/* Ranked final scores */
+.final-rank-row{display:flex;align-items:center;gap:.7rem;padding:.65rem .8rem;border-radius:12px;margin-bottom:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.final-rank-row.rank-1{background:rgba(240,192,64,.12);border-color:rgba(240,192,64,.35)}
+.final-rank-row.rank-2{background:rgba(180,180,180,.08);border-color:rgba(180,180,180,.2)}
+.final-rank-row.rank-3{background:rgba(180,120,60,.08);border-color:rgba(180,120,60,.2)}
+.final-rank-row.local-player{border-color:var(--gold)}
+.fr-rank{font-size:1.4rem;flex-shrink:0;width:32px;text-align:center}
+.fr-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:2px solid rgba(255,255,255,.2);flex-shrink:0}
+.fr-name{font-family:var(--font-heading);color:var(--cream);font-size:.9rem;flex:1;text-align:left}
+.fr-score{font-family:var(--font-heading);font-size:1rem;color:var(--gold)}
+
+/* ── RULES ── */
+#screen-rules{background:#0c0e18;overflow-y:auto;align-items:flex-start;justify-content:flex-start;padding:1.5rem 1rem}
+.rules-content{max-width:680px;width:100%;margin:0 auto}
+.rules-body{margin:1.2rem 0 1.8rem;display:flex;flex-direction:column;gap:1rem}
+.rule-section{background:rgba(255,255,255,.03);border-left:3px solid var(--gold);border-radius:0 10px 10px 0;padding:.85rem .95rem}
+.rule-section h3{font-family:var(--font-heading);color:var(--gold);margin-bottom:.32rem;font-size:.92rem}
+.rule-section p{color:#b0a090;line-height:1.6;font-size:.86rem}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:max(env(safe-area-inset-bottom,0px) + 1rem,1.5rem);left:50%;transform:translateX(-50%);background:rgba(20,20,30,.96);border:1px solid var(--gold);color:var(--cream);padding:.6rem 1.2rem;border-radius:24px;font-size:.86rem;z-index:400;pointer-events:none;white-space:nowrap;max-width:88vw;overflow:hidden;text-overflow:ellipsis}
+.toast.hidden{display:none}
+
+/* ── REJOIN BANNER ── */
+.rejoin-banner{position:absolute;top:max(env(safe-area-inset-top,0px) + 1rem,1rem);left:50%;transform:translateX(-50%);background:rgba(34,134,58,.18);border:1px solid rgba(34,134,58,.6);border-radius:14px;padding:.65rem .9rem;display:flex;align-items:center;gap:.65rem;z-index:15;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.4);max-width:92vw}
+.rejoin-banner-icon{font-size:1.3rem;flex-shrink:0}
+.rejoin-banner-text{display:flex;flex-direction:column;gap:.08rem;flex:1;min-width:0}
+.rejoin-banner-title{font-family:var(--font-heading);font-size:.75rem;color:#4ade80;letter-spacing:.12em;text-transform:uppercase}
+.rejoin-banner-sub{font-size:.7rem;color:#6a9a7a;overflow:hidden;text-overflow:ellipsis}
+
+/* ── RESPONSIVE ── */
+@media(min-width:1100px){:root{--card-w:74px;--card-h:103px;--card-font:1.55rem;--card-val:.87rem}}
+@media(min-width:768px) and (max-width:1099px){:root{--card-w:66px;--card-h:92px;--card-font:1.4rem;--card-val:.8rem}}
+@media(min-width:600px) and (max-width:767px){:root{--card-w:62px;--card-h:86px;--card-font:1.3rem;--card-val:.76rem};.game-title-small{display:none}}
+@media(min-width:430px) and (max-width:599px){:root{--card-w:56px;--card-h:78px;--card-font:1.15rem;--card-val:.7rem};.game-title-small{display:none};.opponent-zone{min-width:142px;max-width:176px;padding:.6rem .8rem;gap:.6rem}.opp-avatar{width:46px;height:46px;font-size:1.4rem}.opp-name{font-size:.92rem;max-width:108px}.opp-cards{font-size:.74rem}.opp-card-mini{width:13px;height:19px}}
+@media(min-width:360px) and (max-width:429px){:root{--card-w:50px;--card-h:70px;--card-font:1.05rem;--card-val:.66rem};.game-title-small{display:none};.hand-hint{display:none};.opponent-zone{min-width:122px;max-width:148px;padding:.5rem .6rem;gap:.5rem}.opp-avatar{width:40px;height:40px;font-size:1.2rem}.opp-name{font-size:.82rem;max-width:88px}.opp-cards{font-size:.68rem}.opp-card-mini{width:11px;height:16px}}
+@media(max-width:359px){:root{--card-w:44px;--card-h:62px;--card-font:.9rem;--card-val:.6rem};.game-title-small{display:none};.opp-card-mini{display:none};.hand-hint{display:none};.card-joker-label{display:none};.opponent-zone{min-width:106px;max-width:130px;padding:.42rem .52rem;gap:.42rem}.opp-avatar{width:36px;height:36px;font-size:1.05rem}.opp-name{font-size:.76rem;max-width:72px}.opp-cards{font-size:.62rem}}
+@media(max-height:500px) and (orientation:landscape){:root{--card-w:46px;--card-h:64px;--card-font:.95rem;--card-val:.62rem};#table-center{gap:1.2rem};.hand-container{max-height:90px};#action-log-wrapper{bottom:2px}}
+@media(-webkit-min-device-pixel-ratio:2),(min-resolution:192dpi){.card{border-width:1px};.card-back{border-width:1.5px}}
