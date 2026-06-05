@@ -221,14 +221,32 @@ function handleStateUpdate(publicState, result) {
   const localId = Network.getLocalPlayerId();
   const { action } = result || {};
 
-  // Sync local hand
+  // Sync local hand WITHOUT destroying the player's custom drag/sort order.
+  // Keep existing cards in the order the player arranged them, append any
+  // newly-drawn cards at the end, and drop any cards that were discarded.
   const localPlayer = publicState.players.find(p => p.id === localId);
   if (localPlayer?.hand) {
-    const sameCards = _localHand.length === localPlayer.hand.length &&
-      _localHand.every(c => localPlayer.hand.some(h => h.id === c.id));
-    if (!sameCards) {
-      _localHand = [...localPlayer.hand];
+    const serverHand = localPlayer.hand;
+    const serverIds  = new Set(serverHand.map(c => c.id));
+    const localIds   = new Set(_localHand.map(c => c.id));
+
+    // Detect a brand-new hand (new round / first deal): no overlap at all.
+    const overlap = _localHand.some(c => serverIds.has(c.id));
+    const isFreshDeal = _localHand.length === 0 || !overlap;
+
+    if (isFreshDeal) {
+      // New round or first sync — take the server order as-is.
+      _localHand = [...serverHand];
       if (_goOutMode) _exitGoOutMode();
+    } else {
+      // 1) keep cards we still have, in OUR order
+      const kept = _localHand.filter(c => serverIds.has(c.id));
+      // 2) append any new cards (e.g. a freshly drawn card) at the end
+      const added = serverHand.filter(c => !localIds.has(c.id));
+      // 3) refresh card objects from the server copy (keeps data current)
+      const byId = {};
+      serverHand.forEach(c => { byId[c.id] = c; });
+      _localHand = [...kept, ...added].map(c => byId[c.id] || c);
     }
   }
 
