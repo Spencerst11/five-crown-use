@@ -27,14 +27,25 @@ const UI = (() => {
   // Map a card to its artwork filename in images/cards/
   // Rank labels: 3-10 use the number; J/Q/K use the letter; Joker uses the suit it belongs to.
   function cardImageFile(card) {
+    // Map internal suit id -> the PLURAL folder name used in images/cards/
+    const suitPlural = {
+      club: 'clubs', diamond: 'diamonds', heart: 'hearts',
+      spade: 'spades', star: 'stars',
+    };
+    // Map rank -> filename token. Face cards are spelled out; Joker per suit.
+    const rankToken = {
+      3:'3', 4:'4', 5:'5', 6:'6', 7:'7', 8:'8', 9:'9', 10:'10',
+      11:'jack', 12:'queen', 13:'king',
+    };
     if (card.rank === 0) {
-      // Jokers are distinguished by the deck/suit color in your art.
-      // We name them joker-1..joker-? by deckIndex; default to a single joker image.
-      return 'joker.png';
+      // Jokers: files are named clubs-joker.png, hearts-joker.png, etc.
+      // Use the joker's own suit if present, otherwise default to clubs-joker.
+      const s = suitPlural[card.suit] || 'clubs';
+      return `${s}-joker.png`;
     }
-    const suit = card.suit;                 // star, heart, club, spade, diamond
-    const ri = RANK_INFO[card.rank];
-    return `${suit}-${ri.label}.png`;       // e.g. club-3.png, heart-J.png, star-K.png, diamond-10.png
+    const s = suitPlural[card.suit] || card.suit;
+    const r = rankToken[card.rank] || card.rank;
+    return `${s}-${r}.png`;                 // e.g. clubs-3.png, hearts-jack.png, stars-king.png
   }
 
   function renderCard(card, opts = {}) {
