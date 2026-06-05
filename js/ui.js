@@ -24,23 +24,52 @@ const UI = (() => {
   }
 
   // ── CARD RENDERING ───────────────────────────────────────
+  // Map a card to its artwork filename in images/cards/
+  // Rank labels: 3-10 use the number; J/Q/K use the letter; Joker uses the suit it belongs to.
+  function cardImageFile(card) {
+    if (card.rank === 0) {
+      // Jokers are distinguished by the deck/suit color in your art.
+      // We name them joker-1..joker-? by deckIndex; default to a single joker image.
+      return 'joker.png';
+    }
+    const suit = card.suit;                 // star, heart, club, spade, diamond
+    const ri = RANK_INFO[card.rank];
+    return `${suit}-${ri.label}.png`;       // e.g. club-3.png, heart-J.png, star-K.png, diamond-10.png
+  }
+
   function renderCard(card, opts = {}) {
     const { selected = false, onClick = null } = opts;
     const el = document.createElement('div');
-    el.classList.add('card');
+    el.classList.add('card', 'card-img');
     el.dataset.cardId = card.id;
     if (selected) el.classList.add('selected');
     if (opts.inMeld) el.classList.add('in-meld');
     if (opts.justDrawn) el.classList.add('just-drawn');
+    if (card.rank === 0) el.classList.add('joker');
 
+    // Build the code-drawn fallback (shown only if the image fails to load).
+    let fallbackHTML;
     if (card.rank === 0) {
-      el.classList.add('joker');
-      el.innerHTML = `<div class="card-corner"><span class="card-value" style="color:#7b2d8b">J</span><span class="card-suit-sm" style="color:#7b2d8b">K</span></div><div class="card-center"><div><div class="card-joker-center">🃏</div><div class="card-joker-label">JOKER</div></div></div><div class="card-corner bottom"><span class="card-value" style="color:#7b2d8b">J</span><span class="card-suit-sm" style="color:#7b2d8b">K</span></div>`;
+      fallbackHTML = `<div class="card-corner"><span class="card-value" style="color:#7b2d8b">JK</span></div><div class="card-center"><div class="card-joker-label">JOKER</div></div><div class="card-corner bottom"><span class="card-value" style="color:#7b2d8b">JK</span></div>`;
     } else {
       const ri = RANK_INFO[card.rank];
       const si = getSuitInfo(card.suit);
-      el.innerHTML = `<div class="card-corner"><span class="card-value ${si.cls}">${ri.label}</span><span class="card-suit-sm ${si.cls}">${si.symbol}</span></div><div class="card-center ${si.cls}" style="font-size:${ri.label==='10'?'1.1rem':'1.4rem'}">${si.symbol}</div><div class="card-corner bottom"><span class="card-value ${si.cls}">${ri.label}</span><span class="card-suit-sm ${si.cls}">${si.symbol}</span></div>`;
+      fallbackHTML = `<div class="card-corner"><span class="card-value ${si.cls}">${ri.label}</span><span class="card-suit-sm ${si.cls}">${si.symbol}</span></div><div class="card-center ${si.cls}" style="font-size:${ri.label==='10'?'1.1rem':'1.4rem'}">${si.symbol}</div><div class="card-corner bottom"><span class="card-value ${si.cls}">${ri.label}</span><span class="card-suit-sm ${si.cls}">${si.symbol}</span></div>`;
     }
+
+    // The artwork image. If it 404s, we swap to the code-drawn fallback.
+    const img = document.createElement('img');
+    img.className = 'card-art';
+    img.alt = card.rank === 0 ? 'Joker' : `${RANK_INFO[card.rank].label} of ${card.suit}`;
+    img.draggable = false;
+    img.src = `images/cards/${cardImageFile(card)}`;
+    img.onerror = () => {
+      img.remove();
+      el.classList.remove('card-img');
+      el.innerHTML = fallbackHTML;
+    };
+    el.appendChild(img);
+
     if (onClick) el.addEventListener('click', e => { e.stopPropagation(); onClick(card, el); });
     return el;
   }
