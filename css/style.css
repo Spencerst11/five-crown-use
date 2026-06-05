@@ -366,13 +366,14 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
    characters) shows inside the game's card.
    --art-crop controls how much of the photo's outer edge is trimmed off.
    Increase it to hide more border; decrease it to show more of the photo. */
-:root{ --art-crop: 7.05%; }
-.card.card-img{padding:0;overflow:hidden;background:var(--card-bg)}
+:root{ --art-crop: 6.5%; }
+.card.card-img{padding:0;overflow:hidden;background:var(--card-bg);display:flex;align-items:center;justify-content:center}
 .card-art{
   width:calc(100% + var(--art-crop) * 2);
   height:calc(100% + var(--art-crop) * 2);
   margin:calc(-1 * var(--art-crop));
   object-fit:cover;
+  object-position:center center;
   border-radius:calc(var(--radius-card) - 2px);
   display:block;pointer-events:none;-webkit-user-drag:none;
 }
