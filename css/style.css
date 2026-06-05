@@ -372,7 +372,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
   width:calc(100% + var(--art-crop) * 2);
   height:calc(100% + var(--art-crop) * 2);
   margin:calc(-1 * var(--art-crop));
-  object-fit:cover;
+  object-fit:contain;
   object-position:center center;
   border-radius:calc(var(--radius-card) - 2px);
   display:block;pointer-events:none;-webkit-user-drag:none;
