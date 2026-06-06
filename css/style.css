@@ -325,7 +325,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .status-warn{background:rgba(180,100,0,.2);color:#fbbf24;border:1px solid rgba(180,100,0,.3)}
 
 /* Hand */
-.hand-container{display:flex;flex-wrap:wrap;gap:clamp(3px,1vw,6px);justify-content:center;min-height:clamp(82px,16vh,108px);padding:2px;user-select:none;overflow-y:auto;max-height:clamp(108px,26vh,190px)}
+.hand-container{display:flex;flex-wrap:wrap;align-items:center;gap:clamp(3px,1vw,6px);justify-content:center;min-height:clamp(82px,16vh,108px);padding:2px;user-select:none;overflow-y:auto;max-height:clamp(108px,26vh,190px)}
 .hand-hint{font-size:.58rem;color:#3a5a3a;text-align:center;margin-top:.1rem;font-style:italic}
 
 /* Go-out builder card wrapper */
@@ -369,6 +369,10 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 /* Show the ENTIRE card image within the card borders (no cropping).
    'contain' fits the whole picture; a tiny padding keeps it off the edges. */
 .card.card-img{padding:0;overflow:hidden;background:var(--card-bg);display:flex;align-items:center;justify-content:center}
+/* Keep cards at their true card shape inside any flex row (no stretching) */
+.card{align-self:center}
+/* Make sure the whole artwork (including the rank corners) is visible */
+.card-art{object-fit:contain}
 .card-art{
   width:100%;
   height:100%;
