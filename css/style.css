@@ -374,8 +374,8 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 /* Make sure the whole artwork (including the rank corners) is visible */
 .card-art{object-fit:contain}
 .card-art{
-  width:75%;
-  height:75%;
+  width:80%;
+  height:80%;
   object-fit:contain;
   object-position:center center;
   border-radius:calc(var(--radius-card) - 2px);
