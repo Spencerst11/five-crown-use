@@ -702,7 +702,7 @@ const UI = (() => {
     for (let i = 0; i < numCards; i++) {
       const cardEl = document.createElement('div');
       cardEl.className = 'deal-card-anim';
-      cardEl.textContent = '👑';
+      // visual comes from the card-back image in CSS
       const ex = fanStartX + i * cardGap;
       cardEl.style.setProperty('--sx', `${sx}px`);
       cardEl.style.setProperty('--sy', `${sy}px`);
