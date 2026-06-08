@@ -287,7 +287,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .pile{display:flex;flex-direction:column;align-items:center;gap:.3rem;cursor:pointer;transition:transform .15s;z-index:5}
 .pile:hover,.pile:active{transform:scale(1.05)}
 .pile-cards{position:relative;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
-.card-back{background:#000 center/cover no-repeat url('../images/card-back.png');border:2px solid rgba(240,192,64,.5);border-radius:var(--radius-card);display:flex;align-items:center;justify-content:center;font-size:0;color:transparent;box-shadow:3px 3px 10px var(--card-shadow);position:absolute;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
+.card-back{background:#000 center/cover no-repeat url('../images/card-back.png');border:1px solid rgba(240,192,64,.5);border-radius:var(--radius-card);display:flex;align-items:center;justify-content:center;font-size:0;color:transparent;box-shadow:3px 3px 10px var(--card-shadow);position:absolute;width:clamp(58px,10vw,76px);height:clamp(82px,14vw,106px)}
 .stack-1{top:0;left:0;z-index:3}.stack-2{top:-3px;left:-3px;z-index:2;opacity:.85}.stack-3{top:-6px;left:-6px;z-index:1;opacity:.7}
 .pile-label{font-family:var(--font-heading);font-size:clamp(.68rem,2vw,.85rem);color:#ffe88a;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.8)}
 .pile-count{font-size:.74rem;color:#cfe3cf;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.7)}
@@ -359,7 +359,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .picker-unassign{color:#887766}.picker-close{color:#554444;font-size:.66rem}
 
 /* ── PLAYING CARDS ── */
-.card{width:var(--card-w,68px);height:auto;aspect-ratio:5/7;background:var(--card-bg);border:2px solid #ddd;border-radius:var(--radius-card);cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;padding:3px 4px;box-shadow:2px 3px 8px var(--card-shadow);transition:transform .15s,box-shadow .15s,border-color .15s;position:relative;user-select:none;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.card{width:var(--card-w,68px);height:auto;aspect-ratio:5/7;background:var(--card-bg);border:1px solid #ddd;border-radius:var(--radius-card);cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;padding:3px 4px;box-shadow:2px 3px 8px var(--card-shadow);transition:transform .15s,box-shadow .15s,border-color .15s;position:relative;user-select:none;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 /* When a card shows artwork, the image fills the whole card face */
 /* Artwork cards: KEEP the game's white card frame (border + rounded corners),
    and crop the border out of the photo so only the inner art (numbers, suits,
@@ -374,8 +374,8 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 /* Make sure the whole artwork (including the rank corners) is visible */
 .card-art{object-fit:contain}
 .card-art{
-  width:80%;
-  height:80%;
+  width:85%;
+  height:85%;
   object-fit:contain;
   object-position:center center;
   border-radius:calc(var(--radius-card) - 2px);
@@ -402,7 +402,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .deal-overlay{position:absolute;inset:0;z-index:50;pointer-events:none;overflow:hidden}
 .deal-overlay.hidden{display:none}
 .deal-card-anim{position:absolute;width:clamp(40px,7vw,56px);height:clamp(56px,10vw,80px);background:#000 center/cover no-repeat url('../images/card-back.png');border:2px solid rgba(240,192,64,.6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0;color:transparent;box-shadow:3px 3px 14px rgba(0,0,0,.7);left:0;top:0;animation:dealSpin var(--deal-dur,.45s) var(--deal-delay,0s) cubic-bezier(.25,.46,.45,.94) both}
-@keyframes dealSpin{0%{transform:translate(var(--sx,0px),var(--sy,0px)) rotate(var(--sr,0deg)) scale(.5);opacity:0}15%{opacity:1}60%{transform:translate(calc(var(--sx,0px) + (var(--ex,0px) - var(--sx,0px))*.6),calc(var(--sy,0px) + (var(--ey,0px) - var(--sy,0px))*.6)) rotate(calc(var(--sr,0deg) + 360deg)) scale(.9)}100%{transform:translate(var(--ex,0px),var(--ey,0px)) rotate(var(--er,0deg)) scale(1);opacity:1}}
+@keyframes dealSpin{0%{transform:translate(var(--sx,0px),var(--sy,0px)) rotate(var(--sr,0deg)) scale(.5);opacity:0}15%{opacity:1}60%{transform:translate(calc(var(--sx,0px) + (var(--ex,0px) - var(--sx,0px))*.6),calc(var(--sy,0px) + (var(--ey,0px) - var(--sy,0py))*.6)) rotate(calc(var(--sr,0deg) + 360deg)) scale(.9)}100%{transform:translate(var(--ex,0px),var(--ey,0px)) rotate(var(--er,0deg)) scale(1);opacity:1}}
 
 /* ── GO-OUT ERROR ── */
 .goout-error-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(6px);animation:fadeIn .15s ease}
