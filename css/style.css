@@ -374,8 +374,8 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 /* Make sure the whole artwork (including the rank corners) is visible */
 .card-art{object-fit:contain}
 .card-art{
-  width:100%;
-  height:100%;
+  width:110%;
+  height:110%;
   object-fit:contain;
   object-position:center center;
   border-radius:calc(var(--radius-card) - 2px);
@@ -386,7 +386,7 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .card.in-meld{border-color:#22863a;box-shadow:0 0 5px rgba(34,134,58,.5)}
 .card.drag-over{border-color:var(--gold);background:rgba(255,248,220,.95)}
 .card.dragging{opacity:.35;transform:scale(.94)}
-.card.joker{background:linear-gradient(135deg,#fff8e8,#fff0c8)}
+.card.joker{background:var(--card-bg)}
 .card-corner{display:flex;flex-direction:column;align-items:center;line-height:1}
 .card-corner.bottom{transform:rotate(180deg)}
 .card-value{font-size:var(--card-val,.82rem);font-weight:700;line-height:1}
