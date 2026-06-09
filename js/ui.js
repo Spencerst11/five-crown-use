@@ -1,5 +1,5 @@
 // ============================================================
-// ui.js — Five Crowns UI (v8)
+// ui.js — Five Kingdoms UI (v8)
 // Major changes:
 //   - Scoreboard: left side-panel tab, totals only
 //   - Final cards panel: right side-panel tab, shows melds + leftovers
