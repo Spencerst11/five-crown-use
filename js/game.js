@@ -1,5 +1,5 @@
 // ============================================================
-// game.js — Five Crowns Game Logic (v8)
+// game.js — Five Kingdoms Game Logic (v8)
 // New: getPublicState now includes revealedLeftover (unmelded
 //      cards shown in the right Final Cards panel after round ends)
 // ============================================================
