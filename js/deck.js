@@ -1,5 +1,5 @@
 // ============================================================
-// deck.js — Card & Deck Logic for Five Crowns
+// deck.js — Card & Deck Logic for Five Kingdoms
 // ============================================================
 
 const SUITS = [
