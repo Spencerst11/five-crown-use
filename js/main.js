@@ -1,5 +1,5 @@
 // ============================================================
-// main.js — Five Crowns App Controller (v8)
+// main.js — Five Kingdoms App Controller (v8)
 // Changes:
 //   - Scoreboard: left side-panel tab (no overlay, no header btn)
 //   - Final cards panel: right side-panel tab
@@ -686,5 +686,5 @@ window.addEventListener('load', () => {
   _refreshAvatarPreview('join',   _joinAvatar);
   _setupAutoReconnect();
   _showRejoinBanner();
-  console.log('Five Crowns v8 loaded ♛');
+  console.log('Five Kingdoms v8 loaded ♛');
 });
