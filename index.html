@@ -7,22 +7,114 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👑</text></svg>" />
   <link rel="stylesheet" href="css/style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English+SC&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
+  <!-- ════════ Five Kingdoms splash screen (scoped to #screen-splash) ════════ -->
+  <style>
+  #screen-splash{
+    --parchment:#f7f2e3; --parchment-deep:#ece3cc;
+    --ink:#1d3354; --frog:#46531d; --hound:#ff4a1f;
+    --jelly:#c2244a; --drake:#c9930f; --turtle:#3f9fd8;
+    background:radial-gradient(ellipse at 50% 38%, var(--parchment) 0%, var(--parchment-deep) 78%, #e0d4b4 100%);
+    font-family:'IM Fell English SC', Georgia, serif;
+    overflow:hidden; cursor:pointer;
+  }
+  #screen-splash::after{                       /* faint paper grain */
+    content:"";position:fixed;inset:0;pointer-events:none;opacity:.05;z-index:2;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  #screen-splash .card-frame{
+    position:fixed;inset:14px;pointer-events:none;z-index:4;
+    border:2px solid var(--ink);border-radius:22px;opacity:.85;
+  }
+  #screen-splash .card-frame::before{
+    content:"";position:absolute;inset:5px;border:1px solid var(--ink);border-radius:17px;opacity:.45;
+  }
+  #screen-splash .index{
+    position:fixed;z-index:5;color:var(--ink);text-align:center;
+    font-family:'Pirata One', Georgia, serif;line-height:.9;
+    animation:fk-stamp .7s ease-out both .9s;
+  }
+  #screen-splash .index .num{font-size:clamp(34px,5vw,58px);display:block}
+  #screen-splash .index .pips{display:block;font-size:clamp(13px,1.8vw,20px);margin-top:4px}
+  #screen-splash .index.tl{top:30px;left:32px}
+  #screen-splash .index.br{bottom:30px;right:32px;transform:rotate(180deg)}
+  #screen-splash .index .pips span:nth-child(1){color:var(--frog)}
+  #screen-splash .index .pips span:nth-child(2){color:var(--hound)}
+  #screen-splash .index .pips span:nth-child(3){color:var(--jelly)}
+  #screen-splash .index .pips span:nth-child(4){color:var(--drake)}
+  #screen-splash .index .pips span:nth-child(5){color:var(--turtle)}
+  #screen-splash .sky{position:fixed;inset:0;overflow:hidden;z-index:1}
+  #screen-splash .pip{
+    position:absolute;top:-8vh;user-select:none;
+    -webkit-text-stroke:1.5px rgba(20,24,16,.85);
+    animation-name:fk-fall;animation-timing-function:linear;animation-iteration-count:infinite;
+  }
+  @keyframes fk-fall{0%{transform:translateY(-10vh) rotate(0deg)}100%{transform:translateY(118vh) rotate(var(--spin,300deg))}}
+  #screen-splash .court{
+    position:relative;z-index:3;min-height:100dvh;width:100%;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:24px;
+  }
+  #screen-splash .ring{
+    position:absolute;width:min(78vmin,640px);height:min(78vmin,640px);
+    top:50%;left:50%;translate:-50% -50%;opacity:.14;animation:fk-turn 90s linear infinite;
+  }
+  @keyframes fk-turn{to{transform:rotate(360deg)}}
+  #screen-splash .eyebrow{
+    color:var(--ink);opacity:0;font-size:clamp(14px,2vw,20px);
+    letter-spacing:.45em;text-indent:.45em;animation:fk-inkin 1s ease-out both .25s;
+  }
+  #screen-splash h1{
+    font-family:'Pirata One', Georgia, serif;font-weight:400;color:var(--ink);
+    font-size:clamp(58px,11vw,150px);line-height:.95;margin:.08em 0 .12em;
+    text-shadow:3px 3px 0 rgba(29,51,84,.12);animation:fk-inkin 1.1s ease-out both .45s;
+  }
+  #screen-splash .crests{display:flex;gap:clamp(14px,3.5vw,38px);margin-top:10px}
+  #screen-splash .crest{
+    font-size:clamp(30px,5vw,52px);-webkit-text-stroke:1.5px rgba(20,24,16,.9);
+    animation:fk-stamp .55s ease-out both, fk-bob 4.5s ease-in-out infinite;
+  }
+  #screen-splash .crest.frog  {color:var(--frog);  animation-delay:.9s, 1.5s}
+  #screen-splash .crest.hound {color:var(--hound); animation-delay:1.05s, 2.1s}
+  #screen-splash .crest.jelly {color:var(--jelly); animation-delay:1.2s, 2.7s}
+  #screen-splash .crest.drake {color:var(--drake); animation-delay:1.35s, 3.3s}
+  #screen-splash .crest.turtle{color:var(--turtle);animation-delay:1.5s, 3.9s}
+  @keyframes fk-inkin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes fk-stamp{0%{opacity:0;transform:scale(1.8) rotate(-8deg)}70%{opacity:1;transform:scale(.94)}100%{opacity:1;transform:scale(1)}}
+  @keyframes fk-bob{0%,100%{translate:0 0}50%{translate:0 -9px}}
+  #screen-splash .eyebrow.bottom{animation-delay:1.7s;margin-top:26px;font-size:clamp(12px,1.6vw,16px)}
+  #screen-splash .tap-to-play{
+    margin-top:34px;font-family:'Pirata One', Georgia, serif;color:var(--ink);
+    font-size:clamp(20px,3vw,30px);letter-spacing:.12em;padding:.5em 1.4em;
+    border:2px solid var(--ink);border-radius:14px;background:rgba(247,242,227,.55);
+    cursor:pointer;opacity:0;
+    animation:fk-inkin 1s ease-out both 2s, fk-tap-pulse 1.8s ease-in-out infinite 2.6s;
+    transition:background .15s, transform .15s;
+  }
+  #screen-splash .tap-to-play:hover{background:rgba(29,51,84,.08);transform:translateY(-2px)}
+  @keyframes fk-tap-pulse{0%,100%{opacity:.78}50%{opacity:1}}
+  @media (prefers-reduced-motion: reduce){
+    #screen-splash *{animation-duration:.01s !important;animation-iteration-count:1 !important}
+    #screen-splash .pip{display:none}
+  }
+  </style>
 </head>
 <body>
 
   <!-- ══════════════════════════════════════
        SPLASH
   ══════════════════════════════════════ -->
-  <div id="screen-splash" class="screen active">
-    <div class="splash-bg">
-      <div class="crown-float" id="cf1">♛</div>
-      <div class="crown-float" id="cf2">♛</div>
-      <div class="crown-float" id="cf3">♛</div>
-      <div class="crown-float" id="cf4">♛</div>
-      <div class="crown-float" id="cf5">♛</div>
-    </div>
-    <div id="rejoin-banner" class="rejoin-banner" style="display:none">
+  <div id="screen-splash" class="screen active" onclick="showScreen('screen-main-menu')">
+    <div class="sky" id="splash-sky"></div>
+    <div class="card-frame"></div>
+
+    <div class="index tl"><span class="num">5</span><span class="pips"><span>&clubs;</span><span>&diams;</span><span>&hearts;</span><span>&spades;</span><span>&starf;</span></span></div>
+    <div class="index br"><span class="num">5</span><span class="pips"><span>&clubs;</span><span>&diams;</span><span>&hearts;</span><span>&spades;</span><span>&starf;</span></span></div>
+
+    <!-- rejoin banner: taps inside it must NOT start a new game -->
+    <div id="rejoin-banner" class="rejoin-banner" style="display:none" onclick="event.stopPropagation()">
       <div class="rejoin-banner-icon">🔄</div>
       <div class="rejoin-banner-text">
         <div class="rejoin-banner-title">Game in Progress</div>
@@ -31,19 +123,34 @@
       <button class="btn btn-success btn-small" onclick="rejoinFromMenu()">REJOIN</button>
       <button class="btn btn-ghost btn-small" onclick="giveUpRejoin()">✕</button>
     </div>
-    <div class="splash-content">
-      <div class="splash-logo">
-        <div class="crown-title">👑</div>
-        <h1 class="game-title">FIVE KINGDOMS</h1>
-        <p class="game-subtitle">The Classic Family Card Game</p>
-        <div class="suit-row">★ ♥ ♣ ♠ ♦</div>
+
+    <main class="court">
+      <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="100" cy="100" r="96" fill="none" stroke="#1d3354" stroke-width="1"/>
+        <circle cx="100" cy="100" r="88" fill="none" stroke="#1d3354" stroke-width=".6" stroke-dasharray="2 5"/>
+        <circle cx="100" cy="100" r="72" fill="none" stroke="#1d3354" stroke-width=".6"/>
+        <g fill="#1d3354" font-size="11" font-family="Georgia,serif" text-anchor="middle">
+          <text x="100" y="14">&clubs;</text>
+          <text x="186" y="80">&diams;</text>
+          <text x="153" y="186">&hearts;</text>
+          <text x="47"  y="186">&spades;</text>
+          <text x="14"  y="80">&starf;</text>
+        </g>
+      </svg>
+
+      <p class="eyebrow">The courts assemble</p>
+      <h1>Five Kingdoms</h1>
+      <div class="crests" aria-hidden="true">
+        <span class="crest frog">&clubs;</span>
+        <span class="crest hound">&diams;</span>
+        <span class="crest jelly">&hearts;</span>
+        <span class="crest drake">&spades;</span>
+        <span class="crest turtle">&starf;</span>
       </div>
-      <div class="splash-buttons">
-        <button class="btn btn-primary" onclick="showScreen('screen-main-menu')">PLAY NOW</button>
-        <button class="btn btn-secondary" onclick="showScreen('screen-rules')">HOW TO PLAY</button>
-      </div>
-      <p class="splash-tagline">11 Rounds · 5 Suits · Rotating Wilds · Pure Fun</p>
-    </div>
+      <p class="eyebrow bottom">Frog &middot; Hound &middot; Jellyfish &middot; Drake &middot; Turtle</p>
+
+      <button class="tap-to-play" type="button" onclick="event.stopPropagation(); showScreen('screen-main-menu')">Tap to Play</button>
+    </main>
   </div>
 
   <!-- ══════════════════════════════════════
@@ -367,5 +474,37 @@
   <script src="js/network.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
+
+  <!-- Five Kingdoms splash — drifting suit pips in the five kingdom colors -->
+  <script>
+  (function(){
+    const SUITS = [
+      ['\u2663','var(--frog)'],   // club
+      ['\u2666','var(--hound)'],  // diamond
+      ['\u2665','var(--jelly)'],  // heart
+      ['\u2660','var(--drake)'],  // spade
+      ['\u2605','var(--turtle)']  // star
+    ];
+    const sky = document.getElementById('splash-sky');
+    if (!sky) return;
+    const COUNT = Math.min(30, Math.floor(window.innerWidth / 46));
+    for (let i = 0; i < COUNT; i++) {
+      const [glyph, color] = SUITS[i % SUITS.length];
+      const p = document.createElement('span');
+      p.className = 'pip';
+      p.textContent = glyph;
+      const size = 16 + Math.random() * 30;
+      const dur  = 14 + Math.random() * 18;
+      p.style.left = Math.random() * 100 + 'vw';
+      p.style.fontSize = size + 'px';
+      p.style.color = color;
+      p.style.opacity = (0.25 + Math.random() * 0.45).toFixed(2);
+      p.style.setProperty('--spin', (Math.random() < .5 ? -1 : 1) * (180 + Math.random() * 360) + 'deg');
+      p.style.animationDuration = dur + 's';
+      p.style.animationDelay = (-Math.random() * dur) + 's';
+      sky.appendChild(p);
+    }
+  })();
+  </script>
 </body>
 </html>
