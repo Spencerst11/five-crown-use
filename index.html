@@ -352,14 +352,14 @@
         <div class="avatar-picker" id="create-avatar-picker">
           <div class="avatar-section-label">Animal</div>
           <div class="avatar-animals">
-            <div class="avatar-opt" data-animal="🐧" onclick="selectAnimal(this,'🐧')">🐧<span>Penguin</span></div>
-            <div class="avatar-opt" data-animal="🐉" onclick="selectAnimal(this,'🐉')">🐉<span>Dragon</span></div>
-            <div class="avatar-opt" data-animal="🦫" onclick="selectAnimal(this,'🦫')">🦫<span>Capybara</span></div>
-            <div class="avatar-opt" data-animal="🐢" onclick="selectAnimal(this,'🐢')">🐢<span>Turtle</span></div>
-            <div class="avatar-opt" data-animal="🦕" onclick="selectAnimal(this,'🦕')">🦕<span>Dino</span></div>
-            <div class="avatar-opt" data-animal="🐩" onclick="selectAnimal(this,'🐩')">🐩<span>Poodle</span></div>
-            <div class="avatar-opt" data-animal="🪼" onclick="selectAnimal(this,'🪼')">🪼<span>Jellyfish</span></div>
-            <div class="avatar-opt selected" data-animal="none" onclick="selectAnimal(this,'none')">🚫<span>None</span></div>
+            <div class="avatar-opt" data-animal="penguin"   onclick="selectAnimal(this,'penguin')"><img class="avatar-opt-img" src="images/avatars/penguin.png" alt="Penguin"><span>Penguin</span></div>
+            <div class="avatar-opt" data-animal="dragon"    onclick="selectAnimal(this,'dragon')"><img class="avatar-opt-img" src="images/avatars/dragon.png" alt="Dragon"><span>Dragon</span></div>
+            <div class="avatar-opt" data-animal="capybara"  onclick="selectAnimal(this,'capybara')"><img class="avatar-opt-img" src="images/avatars/capybara.png" alt="Capybara"><span>Capybara</span></div>
+            <div class="avatar-opt" data-animal="turtle"    onclick="selectAnimal(this,'turtle')"><img class="avatar-opt-img" src="images/avatars/turtle.png" alt="Turtle"><span>Turtle</span></div>
+            <div class="avatar-opt" data-animal="dino"      onclick="selectAnimal(this,'dino')"><img class="avatar-opt-img" src="images/avatars/dino.png" alt="Dino"><span>Dino</span></div>
+            <div class="avatar-opt" data-animal="poodle"    onclick="selectAnimal(this,'poodle')"><img class="avatar-opt-img" src="images/avatars/poodle.png" alt="Poodle"><span>Poodle</span></div>
+            <div class="avatar-opt" data-animal="jellyfish" onclick="selectAnimal(this,'jellyfish')"><img class="avatar-opt-img" src="images/avatars/jellyfish.png" alt="Jellyfish"><span>Jellyfish</span></div>
+            <div class="avatar-opt selected" data-animal="none" onclick="selectAnimal(this,'none')"><span class="avatar-opt-none">∅</span><span>None</span></div>
           </div>
           <div class="avatar-section-label">Color</div>
           <div class="avatar-colors">
@@ -403,14 +403,14 @@
         <div class="avatar-picker" id="join-avatar-picker">
           <div class="avatar-section-label">Animal</div>
           <div class="avatar-animals">
-            <div class="avatar-opt" data-animal="🐧" onclick="selectAnimalJoin(this,'🐧')">🐧<span>Penguin</span></div>
-            <div class="avatar-opt" data-animal="🐉" onclick="selectAnimalJoin(this,'🐉')">🐉<span>Dragon</span></div>
-            <div class="avatar-opt" data-animal="🦫" onclick="selectAnimalJoin(this,'🦫')">🦫<span>Capybara</span></div>
-            <div class="avatar-opt" data-animal="🐢" onclick="selectAnimalJoin(this,'🐢')">🐢<span>Turtle</span></div>
-            <div class="avatar-opt" data-animal="🦕" onclick="selectAnimalJoin(this,'🦕')">🦕<span>Dino</span></div>
-            <div class="avatar-opt" data-animal="🐩" onclick="selectAnimalJoin(this,'🐩')">🐩<span>Poodle</span></div>
-            <div class="avatar-opt" data-animal="🪼" onclick="selectAnimalJoin(this,'🪼')">🪼<span>Jellyfish</span></div>
-            <div class="avatar-opt selected" data-animal="none" onclick="selectAnimalJoin(this,'none')">🚫<span>None</span></div>
+            <div class="avatar-opt" data-animal="penguin"   onclick="selectAnimalJoin(this,'penguin')"><img class="avatar-opt-img" src="images/avatars/penguin.png" alt="Penguin"><span>Penguin</span></div>
+            <div class="avatar-opt" data-animal="dragon"    onclick="selectAnimalJoin(this,'dragon')"><img class="avatar-opt-img" src="images/avatars/dragon.png" alt="Dragon"><span>Dragon</span></div>
+            <div class="avatar-opt" data-animal="capybara"  onclick="selectAnimalJoin(this,'capybara')"><img class="avatar-opt-img" src="images/avatars/capybara.png" alt="Capybara"><span>Capybara</span></div>
+            <div class="avatar-opt" data-animal="turtle"    onclick="selectAnimalJoin(this,'turtle')"><img class="avatar-opt-img" src="images/avatars/turtle.png" alt="Turtle"><span>Turtle</span></div>
+            <div class="avatar-opt" data-animal="dino"      onclick="selectAnimalJoin(this,'dino')"><img class="avatar-opt-img" src="images/avatars/dino.png" alt="Dino"><span>Dino</span></div>
+            <div class="avatar-opt" data-animal="poodle"    onclick="selectAnimalJoin(this,'poodle')"><img class="avatar-opt-img" src="images/avatars/poodle.png" alt="Poodle"><span>Poodle</span></div>
+            <div class="avatar-opt" data-animal="jellyfish" onclick="selectAnimalJoin(this,'jellyfish')"><img class="avatar-opt-img" src="images/avatars/jellyfish.png" alt="Jellyfish"><span>Jellyfish</span></div>
+            <div class="avatar-opt selected" data-animal="none" onclick="selectAnimalJoin(this,'none')"><span class="avatar-opt-none">∅</span><span>None</span></div>
           </div>
           <div class="avatar-section-label">Color</div>
           <div class="avatar-colors">
@@ -627,6 +627,7 @@
   ══════════════════════════════════════ -->
   <div id="toast" class="toast hidden"></div>
 
+  <script src="js/avatar.js"></script>
   <script src="js/deck.js"></script>
   <script src="js/game.js"></script>
   <script src="js/network.js"></script>
