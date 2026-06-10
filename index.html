@@ -100,6 +100,123 @@
     #screen-splash .pip{display:none}
   }
   </style>
+
+  <!-- ════════ Five Kingdoms parchment theme: menu / rooms / lobby / rules ════════ -->
+  <style>
+  .mk-theme{
+    --mk-parchment:#f7f2e3; --mk-parchment-deep:#ece3cc;
+    --mk-ink:#1d3354; --mk-ink-soft:#46597a;
+    --mk-frog:#46531d; --mk-hound:#ff4a1f; --mk-jelly:#c2244a; --mk-drake:#c9930f; --mk-turtle:#3f9fd8;
+    --mk-line:rgba(29,51,84,.28);
+    font-family:'IM Fell English SC', Georgia, serif;
+    color:var(--mk-ink);
+  }
+  /* parchment background (id+class beats the old dark id-level backgrounds) */
+  #screen-main-menu.mk-theme, #screen-create-room.mk-theme, #screen-join-room.mk-theme,
+  #screen-lobby.mk-theme, #screen-rules.mk-theme{
+    background:radial-gradient(ellipse at 50% 34%, var(--mk-parchment) 0%, var(--mk-parchment-deep) 76%, #e0d4b4 100%);
+  }
+  /* faint paper grain + the splash's card frame, no extra markup needed */
+  .mk-theme::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.045;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .mk-theme::before{
+    content:"";position:fixed;inset:14px;pointer-events:none;z-index:7;
+    border:2px solid var(--mk-ink);border-radius:22px;opacity:.8;
+  }
+  /* lift real content above the grain; hide the old dark menu texture */
+  .mk-theme .menu-content, .mk-theme .form-content, .mk-theme .lobby-content, .mk-theme .rules-content{position:relative;z-index:1}
+  .mk-theme .menu-bg{display:none}
+  .mk-theme .form-content{background:transparent}
+
+  /* headings */
+  .mk-theme .screen-title{
+    font-family:'Pirata One', Georgia, serif;font-weight:400;color:var(--mk-ink);
+    letter-spacing:.03em;text-shadow:2px 2px 0 rgba(29,51,84,.12);
+    font-size:clamp(30px,6vw,52px);margin-bottom:1.2rem;
+  }
+
+  /* main-menu cards */
+  .mk-theme .menu-card{background:rgba(255,255,255,.45);border:1.5px solid var(--mk-line);border-radius:14px}
+  .mk-theme .menu-card:hover, .mk-theme .menu-card:active{border-color:var(--mk-ink);background:rgba(255,255,255,.72)}
+  .mk-theme .menu-card h3{font-family:'Pirata One',Georgia,serif;font-weight:400;color:var(--mk-ink);letter-spacing:.02em}
+  .mk-theme .menu-card p{color:var(--mk-ink-soft);font-family:'IM Fell English SC',Georgia,serif}
+
+  /* form panels, labels, inputs, selects */
+  .mk-theme .form-box{background:rgba(255,255,255,.5);border:1.5px solid var(--mk-line);border-radius:16px}
+  .mk-theme .form-box label{font-family:'IM Fell English SC',Georgia,serif;color:var(--mk-ink);letter-spacing:.12em;text-transform:uppercase}
+  .mk-theme .optional{color:var(--mk-ink-soft)}
+  .mk-theme .form-box input, .mk-theme .form-box select{
+    background:rgba(255,255,255,.72);border:1.5px solid var(--mk-line);color:var(--mk-ink);
+    font-family:'IM Fell English SC',Georgia,serif;
+  }
+  .mk-theme .form-box input::placeholder{color:rgba(29,51,84,.45)}
+  .mk-theme .form-box input:focus, .mk-theme .form-box select:focus{border-color:var(--mk-ink)}
+  .mk-theme .form-box select option{background:var(--mk-parchment);color:var(--mk-ink)}
+
+  /* avatar picker (swatch colors stay; only chrome restyled) */
+  .mk-theme .avatar-picker{background:rgba(255,255,255,.35);border:1px solid var(--mk-line)}
+  .mk-theme .avatar-section-label{color:var(--mk-ink-soft)}
+  .mk-theme .avatar-opt span{color:var(--mk-ink-soft)}
+  .mk-theme .avatar-opt:hover, .mk-theme .avatar-opt:active{border-color:var(--mk-line);background:rgba(29,51,84,.06)}
+  .mk-theme .avatar-opt.selected{border-color:var(--mk-ink);background:rgba(29,51,84,.1)}
+  .mk-theme .avatar-preview-label{color:var(--mk-ink-soft)}
+  .mk-theme .color-opt.selected{border-color:var(--mk-ink);box-shadow:0 0 0 2px rgba(29,51,84,.4)}
+
+  /* lobby */
+  .mk-theme .room-code-display{background:rgba(255,255,255,.5);border:2px solid var(--mk-ink)}
+  .mk-theme .room-label{color:var(--mk-ink-soft)}
+  .mk-theme .room-code{font-family:'Pirata One',Georgia,serif;color:var(--mk-ink);letter-spacing:.3em}
+  .mk-theme .lobby-player-row{background:rgba(255,255,255,.45);border:1px solid var(--mk-line)}
+  .mk-theme .player-name-lobby{font-family:'IM Fell English SC',Georgia,serif;color:var(--mk-ink)}
+  .mk-theme .player-badge{color:var(--mk-drake)}
+  .mk-theme .lobby-status{color:var(--mk-ink-soft)}
+
+  /* rules */
+  .mk-theme .rule-section{background:rgba(255,255,255,.42);border-left:3px solid var(--mk-drake)}
+  .mk-theme .rule-section h3{font-family:'Pirata One',Georgia,serif;font-weight:400;color:var(--mk-ink);letter-spacing:.02em}
+  .mk-theme .rule-section p{color:var(--mk-ink)}
+  .mk-theme .rule-section p strong{color:var(--mk-jelly)}
+
+  /* buttons — ink on parchment, Pirata headings */
+  .mk-theme .btn-primary{
+    background:var(--mk-ink);color:var(--mk-parchment);border:2px solid var(--mk-ink);
+    font-family:'Pirata One',Georgia,serif;letter-spacing:.06em;box-shadow:0 3px 0 rgba(29,51,84,.3);
+  }
+  .mk-theme .btn-primary:hover, .mk-theme .btn-primary:active{background:#27466b;transform:translateY(-2px);box-shadow:0 5px 0 rgba(29,51,84,.35)}
+  .mk-theme .btn-primary:disabled{background:rgba(29,51,84,.4);border-color:transparent;box-shadow:none}
+  .mk-theme .btn-secondary{background:transparent;color:var(--mk-ink);border:2px solid var(--mk-ink);font-family:'Pirata One',Georgia,serif;letter-spacing:.06em}
+  .mk-theme .btn-secondary:hover{background:rgba(29,51,84,.08)}
+  .mk-theme .btn-ghost{background:transparent;color:var(--mk-ink-soft);border:1px solid var(--mk-line);font-family:'IM Fell English SC',Georgia,serif}
+  .mk-theme .btn-ghost:hover, .mk-theme .btn-ghost:active{color:var(--mk-ink);border-color:var(--mk-ink)}
+  .mk-theme .btn-small{background:rgba(255,255,255,.55);color:var(--mk-ink);border:1.5px solid var(--mk-line);font-family:'IM Fell English SC',Georgia,serif}
+  .mk-theme .btn-small:hover, .mk-theme .btn-small:active{border-color:var(--mk-ink);background:rgba(255,255,255,.8)}
+  .mk-theme .btn-success{background:var(--mk-frog);color:#f7f2e3;border:2px solid var(--mk-frog)}
+  .mk-theme .btn-success:hover, .mk-theme .btn-success:active{background:#586a26}
+
+  /* falling suit-pips + mirrored corner indices — the splash's signature, kept behind content */
+  .mk-theme .mk-sky{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+  .mk-theme .mk-pip{
+    position:absolute;top:-8vh;user-select:none;
+    -webkit-text-stroke:1.25px rgba(20,24,16,.7);
+    animation-name:fk-fall;animation-timing-function:linear;animation-iteration-count:infinite;
+  }
+  .mk-theme .mk-index{
+    position:fixed;z-index:0;color:var(--mk-ink);text-align:center;pointer-events:none;
+    font-family:'Pirata One',Georgia,serif;line-height:.9;opacity:.85;
+  }
+  .mk-theme .mk-index .num{font-size:clamp(26px,4vw,46px);display:block}
+  .mk-theme .mk-index .pips{display:block;font-size:clamp(11px,1.5vw,17px);margin-top:3px}
+  .mk-theme .mk-index.tl{top:24px;left:26px}
+  .mk-theme .mk-index.br{bottom:24px;right:26px;transform:rotate(180deg)}
+  .mk-theme .mk-index .pips span:nth-child(1){color:var(--mk-frog)}
+  .mk-theme .mk-index .pips span:nth-child(2){color:var(--mk-hound)}
+  .mk-theme .mk-index .pips span:nth-child(3){color:var(--mk-jelly)}
+  .mk-theme .mk-index .pips span:nth-child(4){color:var(--mk-drake)}
+  .mk-theme .mk-index .pips span:nth-child(5){color:var(--mk-turtle)}
+  @media (prefers-reduced-motion: reduce){ .mk-theme .mk-pip{display:none} }
+  </style>
 </head>
 <body>
 
@@ -156,7 +273,7 @@
   <!-- ══════════════════════════════════════
        MAIN MENU
   ══════════════════════════════════════ -->
-  <div id="screen-main-menu" class="screen">
+  <div id="screen-main-menu" class="screen mk-theme">
     <div class="menu-bg"></div>
     <div class="menu-content">
       <h2 class="screen-title">Main Menu</h2>
@@ -184,7 +301,7 @@
   <!-- ══════════════════════════════════════
        CREATE ROOM
   ══════════════════════════════════════ -->
-  <div id="screen-create-room" class="screen">
+  <div id="screen-create-room" class="screen mk-theme">
     <div class="form-content">
       <h2 class="screen-title">Create a Room</h2>
       <div class="form-box">
@@ -235,7 +352,7 @@
   <!-- ══════════════════════════════════════
        JOIN ROOM
   ══════════════════════════════════════ -->
-  <div id="screen-join-room" class="screen">
+  <div id="screen-join-room" class="screen mk-theme">
     <div class="form-content">
       <h2 class="screen-title">Join a Room</h2>
       <div class="form-box">
@@ -280,7 +397,7 @@
   <!-- ══════════════════════════════════════
        LOBBY
   ══════════════════════════════════════ -->
-  <div id="screen-lobby" class="screen">
+  <div id="screen-lobby" class="screen mk-theme">
     <div class="lobby-content">
       <h2 class="screen-title">Game Lobby</h2>
       <div class="room-code-display">
@@ -447,7 +564,7 @@
   <!-- ══════════════════════════════════════
        RULES
   ══════════════════════════════════════ -->
-  <div id="screen-rules" class="screen">
+  <div id="screen-rules" class="screen mk-theme">
     <div class="rules-content">
       <h2 class="screen-title">How to Play Five Kingdoms</h2>
       <div class="rules-body">
@@ -504,6 +621,43 @@
       p.style.animationDelay = (-Math.random() * dur) + 's';
       sky.appendChild(p);
     }
+  })();
+  </script>
+
+  <!-- Parchment screens (menu / rooms / lobby / rules): drifting pips + corner indices to match the splash -->
+  <script>
+  (function(){
+    const COLORS = ['var(--mk-frog)','var(--mk-hound)','var(--mk-jelly)','var(--mk-drake)','var(--mk-turtle)'];
+    const GLYPHS = ['\u2663','\u2666','\u2665','\u2660','\u2605'];
+    const INDEX_HTML = '<span class="num">5</span><span class="pips"><span>\u2663</span><span>\u2666</span><span>\u2665</span><span>\u2660</span><span>\u2605</span></span>';
+    document.querySelectorAll('.mk-theme').forEach(function(screen){
+      ['tl','br'].forEach(function(pos){
+        const idx = document.createElement('div');
+        idx.className = 'mk-index ' + pos;
+        idx.setAttribute('aria-hidden','true');
+        idx.innerHTML = INDEX_HTML;
+        screen.appendChild(idx);
+      });
+      const sky = document.createElement('div');
+      sky.className = 'mk-sky';
+      sky.setAttribute('aria-hidden','true');
+      const COUNT = Math.min(18, Math.floor(window.innerWidth / 70));
+      for (let i = 0; i < COUNT; i++) {
+        const p = document.createElement('span');
+        p.className = 'mk-pip';
+        p.textContent = GLYPHS[i % GLYPHS.length];
+        p.style.color = COLORS[i % COLORS.length];
+        const dur = 16 + Math.random() * 20;
+        p.style.left = Math.random() * 100 + 'vw';
+        p.style.fontSize = (14 + Math.random() * 24) + 'px';
+        p.style.opacity = (0.16 + Math.random() * 0.26).toFixed(2);
+        p.style.setProperty('--spin', (Math.random() < .5 ? -1 : 1) * (180 + Math.random() * 360) + 'deg');
+        p.style.animationDuration = dur + 's';
+        p.style.animationDelay = (-Math.random() * dur) + 's';
+        sky.appendChild(p);
+      }
+      screen.appendChild(sky);
+    });
   })();
   </script>
 </body>
