@@ -217,6 +217,47 @@
   .mk-theme .mk-index .pips span:nth-child(5){color:var(--mk-turtle)}
   @media (prefers-reduced-motion: reduce){ .mk-theme .mk-pip{display:none} }
   </style>
+
+  <!-- ════════ Game-table chrome in parchment cream (top header bar + bottom hand bar) ════════ -->
+  <style>
+  /* top header bar */
+  #screen-game #game-header{
+    background:linear-gradient(#f6efdc,#efe6cf);
+    border-bottom:2px solid rgba(29,51,84,.55);
+    box-shadow:0 2px 10px rgba(0,0,0,.4);
+  }
+  #screen-game .game-title-small{
+    font-family:'Pirata One', Georgia, serif; font-weight:400;
+    color:#1d3354; letter-spacing:.05em;
+  }
+  #screen-game #hdr-round, #screen-game #hdr-phase{
+    font-family:'IM Fell English SC', Georgia, serif; color:#46597a;
+  }
+
+  /* bottom hand bar */
+  #screen-game #player-area{
+    background:linear-gradient(#efe6cf,#f6efdc);
+    border-top:2px solid rgba(29,51,84,.55);
+    box-shadow:0 -2px 10px rgba(0,0,0,.4);
+  }
+  #screen-game .you-name{
+    font-family:'Pirata One', Georgia, serif; font-weight:400; color:#1d3354;
+  }
+  #screen-game .you-score{
+    font-family:'IM Fell English SC', Georgia, serif; color:#46597a;
+  }
+  #screen-game .hand-hint{
+    font-family:'IM Fell English SC', Georgia, serif; color:#5a6f8c;
+  }
+  #screen-game .turn-badge{ font-family:'Pirata One', Georgia, serif; letter-spacing:.04em; }
+  /* buttons now sit on cream: keep them readable + on-theme */
+  #screen-game #player-area .btn-warning{
+    background:#c9930f; color:#1d3354; border:1.5px solid #1d3354;
+    font-family:'Pirata One', Georgia, serif; letter-spacing:.03em;
+  }
+  #screen-game #player-area .btn-warning:hover, #screen-game #player-area .btn-warning:active{background:#d9a528}
+  #screen-game #player-area .btn-success{ font-family:'Pirata One', Georgia, serif; letter-spacing:.03em; }
+  </style>
 </head>
 <body>
 
