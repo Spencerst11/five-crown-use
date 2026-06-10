@@ -352,7 +352,9 @@ const Network = (() => {
     const session = _loadSession();
     if (!session) return false;
     isHost = session.isHost;
-    await joinRoom(session.name, session.roomCode, session.avatar, callbacks, true, session.playerId);
+    // migrate any legacy emoji-based avatar to the current id scheme
+    const av = (typeof Avatar !== 'undefined') ? Avatar.migrate(session.avatar) : session.avatar;
+    await joinRoom(session.name, session.roomCode, av, callbacks, true, session.playerId);
     return true;
   }
 

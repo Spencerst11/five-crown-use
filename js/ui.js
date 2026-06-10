@@ -11,15 +11,16 @@
 const UI = (() => {
 
   // ── AVATAR HELPERS ───────────────────────────────────────
-  const COLOR_MAP = { red:'#e53e3e',pink:'#d53f8c',periwinkle:'#7b8cde',sage:'#68a57a',orange:'#ed8936',gold:'#d4a017' };
-  function avatarBg(av)      { return COLOR_MAP[av?.color] || COLOR_MAP.gold; }
-  function avatarEmoji(av)   { return (!av || av.animal === 'none') ? null : av.animal; }
+  // Color/image logic now lives in the shared Avatar module (avatar.js).
+  const COLOR_MAP = Avatar.COLOR_MAP;
+  function avatarBg(av)     { return Avatar.bg(av); }
+  function avatarHasImg(av) { return Avatar.hasImage(av); }
 
   function renderAvatarEl(avatar, size = 34) {
     const el = document.createElement('div');
-    el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:${avatarBg(avatar)};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.55)}px;border:2px solid rgba(255,255,255,.2);flex-shrink:0;`;
-    const em = avatarEmoji(avatar);
-    if (em) { el.textContent = em; } else { el.classList.add('initials-av'); }
+    el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;background:${avatarBg(avatar)};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.4)}px;font-family:var(--font-heading);color:#fff;border:2px solid rgba(255,255,255,.2);flex-shrink:0;`;
+    if (avatarHasImg(avatar)) Avatar.paint(el, avatar, '');
+    else el.classList.add('initials-av');
     return el;
   }
 
@@ -326,7 +327,7 @@ const UI = (() => {
     if (p.disconnected)         zone.classList.add('disconnected');
 
     const avEl = renderAvatarEl(p.avatar, 40);
-    if (!avatarEmoji(p.avatar))
+    if (!avatarHasImg(p.avatar))
       avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
     const cardBacks = Math.min(p.handCount, 6);
@@ -368,7 +369,7 @@ const UI = (() => {
       if (p) {
         const isMe = p.id === localPlayerId;
         const avEl = renderAvatarEl(p.avatar, 38);
-        if (!avatarEmoji(p.avatar)) avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+        if (!avatarHasImg(p.avatar)) avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
         const nameDiv = document.createElement('div');
         nameDiv.className = 'player-name-lobby';
         nameDiv.textContent = p.name + (isMe ? ' (you)' : '');
@@ -493,11 +494,10 @@ const UI = (() => {
       header.className = 'final-player-header';
       const avEl = document.createElement('div');
       avEl.className = 'final-player-avatar';
-      avEl.style.background = (COLOR_MAP[p.avatar?.color] || COLOR_MAP.gold);
-      const em = avatarEmoji(p.avatar);
-      if (em) {
-        avEl.textContent = em;
+      if (Avatar.hasImage(p.avatar)) {
+        Avatar.paint(avEl, p.avatar, p.name);
       } else {
+        avEl.style.background = (COLOR_MAP[p.avatar?.color] || COLOR_MAP.gold);
         avEl.style.fontSize = '.65rem';
         avEl.style.fontFamily = 'var(--font-heading)';
         avEl.textContent = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
@@ -628,11 +628,10 @@ const UI = (() => {
       const pInfo = players ? players.find(p => p.id === r.playerId) : null;
       const avEl = document.createElement('div');
       avEl.className = 'fr-avatar';
-      avEl.style.background = COLOR_MAP[pInfo?.avatar?.color] || COLOR_MAP.gold;
-      const em = pInfo ? avatarEmoji(pInfo.avatar) : null;
-      if (em) {
-        avEl.textContent = em;
+      if (pInfo && Avatar.hasImage(pInfo.avatar)) {
+        Avatar.paint(avEl, pInfo.avatar, r.name);
       } else {
+        avEl.style.background = COLOR_MAP[pInfo?.avatar?.color] || COLOR_MAP.gold;
         avEl.style.fontSize = '.7rem';
         avEl.style.fontFamily = 'var(--font-heading)';
         avEl.textContent = r.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);

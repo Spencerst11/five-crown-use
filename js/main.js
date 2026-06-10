@@ -30,20 +30,31 @@ let _roundCountdownTimer = null;
 let _createAvatar = { animal:'none', color:'gold' };
 let _joinAvatar   = { animal:'none', color:'gold' };
 
-const COLOR_NAMES  = { red:'Red', pink:'Berry Pink', periwinkle:'Periwinkle', sage:'Sage', orange:'Orange', gold:'Gold' };
-const ANIMAL_NAMES = { '🐧':'Penguin','🐉':'Dragon','🦫':'Capybara','🐢':'Turtle','🦕':'Dinosaur','🐩':'Poodle','🪼':'Jellyfish','none':'None' };
+const COLOR_NAMES  = Avatar.COLOR_NAMES;
+const ANIMAL_NAMES = Avatar.ANIMAL_NAMES;
 
 function _refreshAvatarPreview(prefix, avatar) {
   const previewEl = document.getElementById(`${prefix}-avatar-preview`);
   const labelEl   = document.getElementById(`${prefix}-avatar-label`);
   if (!previewEl) return;
-  const colorMap = { red:'#e53e3e',pink:'#d53f8c',periwinkle:'#7b8cde',sage:'#68a57a',orange:'#ed8936',gold:'#d4a017' };
-  previewEl.style.background = colorMap[avatar.color] || colorMap.gold;
-  previewEl.textContent = avatar.animal === 'none' ? '' : avatar.animal;
-  const animalLabel = ANIMAL_NAMES[avatar.animal] || 'None';
-  labelEl.textContent = avatar.animal === 'none'
-    ? `No Avatar · ${COLOR_NAMES[avatar.color] || 'Gold'}`
-    : `${animalLabel} · ${COLOR_NAMES[avatar.color] || 'Gold'}`;
+  // paint the picked color as the circle background + animal image (or empty)
+  previewEl.style.background = Avatar.bg(avatar);
+  previewEl.textContent = '';
+  const oldImg = previewEl.querySelector('img.avatar-img');
+  if (oldImg) oldImg.remove();
+  if (Avatar.hasImage(avatar)) {
+    const img = document.createElement('img');
+    img.className = 'avatar-img';
+    img.src = Avatar.imagePath(avatar);
+    img.alt = Avatar.name(avatar);
+    img.draggable = false;
+    previewEl.appendChild(img);
+  }
+  if (labelEl) {
+    labelEl.textContent = avatar.animal === 'none'
+      ? `No Avatar · ${Avatar.colorName(avatar)}`
+      : `${Avatar.name(avatar)} · ${Avatar.colorName(avatar)}`;
+  }
 }
 
 function selectAnimal(el, animal) {
@@ -411,11 +422,7 @@ function _updateYouZone(localPlayer, isMyTurn, phase, drawnThisTurn) {
 
   if (avEl) {
     const av = Network.getLocalAvatar() || { animal:'none', color:'gold' };
-    const colorMap = { red:'#e53e3e',pink:'#d53f8c',periwinkle:'#7b8cde',sage:'#68a57a',orange:'#ed8936',gold:'#d4a017' };
-    avEl.style.background = colorMap[av.color] || colorMap.gold;
-    avEl.textContent = (av.animal && av.animal !== 'none')
-      ? av.animal
-      : Network.getLocalPlayerName().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    Avatar.paint(avEl, av, Network.getLocalPlayerName(), { fontFamily:'var(--font-heading)' });
   }
   if (nameEl) nameEl.textContent = Network.getLocalPlayerName();
   if (scoreEl && localPlayer) scoreEl.textContent = localPlayer.score + ' pts';
