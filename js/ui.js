@@ -89,14 +89,32 @@ const UI = (() => {
   // Mini card for panel display
   function renderCardMini(card, leftover = false) {
     const el = document.createElement('div');
-    el.className = 'card-mini' + (card.rank === 0 ? ' joker-mini' : '') + (leftover ? ' leftover' : '');
+    el.className = 'card-mini card-mini-img' + (card.rank === 0 ? ' joker-mini' : '') + (leftover ? ' leftover' : '');
+
+    // Code-drawn fallback (shown only if the artwork image fails to load),
+    // mirroring the look of the full-size card fallback.
+    let fallbackHTML;
     if (card.rank === 0) {
-      el.innerHTML = `<div style="font-size:.9rem">🃏</div>`;
+      fallbackHTML = `<div class="cm-val" style="color:#7b2d8b">JK</div>`;
     } else {
       const ri = RANK_INFO[card.rank];
       const si = getSuitInfo(card.suit);
-      el.innerHTML = `<div class="cm-val ${si.cls}">${ri.label}</div><div class="cm-suit ${si.cls}">${si.symbol}</div>`;
+      fallbackHTML = `<div class="cm-val ${si.cls}">${ri.label}</div><div class="cm-suit ${si.cls}">${si.symbol}</div>`;
     }
+
+    // Real card artwork — same images used during gameplay, just scaled down.
+    const img = document.createElement('img');
+    img.className = 'card-mini-art';
+    img.alt = card.rank === 0 ? 'Joker' : `${RANK_INFO[card.rank].label} of ${card.suit}`;
+    img.draggable = false;
+    img.src = `images/cards/${cardImageFile(card)}`;
+    img.onerror = () => {
+      img.remove();
+      el.classList.remove('card-mini-img');
+      el.innerHTML = fallbackHTML;
+    };
+    el.appendChild(img);
+
     return el;
   }
 
@@ -186,7 +204,7 @@ const UI = (() => {
 
     const discBtn = document.createElement('button');
     discBtn.className = 'picker-btn picker-discard' + (currentAssign?.type==='discard'?' active':'');
-    discBtn.textContent = '🗑️ Discard';
+    discBtn.textContent = 'Discard';
     discBtn.onclick = (e) => { e.stopPropagation(); onCardAction(card,'discard'); _hideAssignBar(); };
     bar.appendChild(discBtn);
 
@@ -235,13 +253,13 @@ const UI = (() => {
     if (discardId) assigned.add(discardId);
     const unassigned = hand.filter(c => !assigned.has(c.id)).length;
     if (unassigned > 0) {
-      statusEl.textContent = `⚠️ ${unassigned} card${unassigned>1?'s':''} unassigned`;
+      statusEl.textContent = `${unassigned} card${unassigned>1?'s':''} unassigned`;
       statusEl.className = 'goout-status-bar status-warn';
     } else if (!discardId) {
-      statusEl.textContent = '⚠️ Mark one card as Discard';
+      statusEl.textContent = 'Mark one card as Discard';
       statusEl.className = 'goout-status-bar status-warn';
     } else {
-      statusEl.textContent = '✅ All assigned — tap SUBMIT to go out';
+      statusEl.textContent = 'All assigned — tap SUBMIT to go out';
       statusEl.className = 'goout-status-bar status-ok';
     }
   }
@@ -337,7 +355,7 @@ const UI = (() => {
     const info = document.createElement('div');
     info.className = 'opp-info';
     info.innerHTML =
-      `<div class="opp-name">${escHtml(p.name)}${p.id===currentTurnId?' 🎯':''}${p.wentOut?' ✅':''}</div>` +
+      `<div class="opp-name">${escHtml(p.name)}${p.id===currentTurnId?' <span class="turn-dot" title="Their turn">●</span>':''}${p.wentOut?' <span class="went-out-tag">OUT</span>':''}</div>` +
       `<div class="opp-cards">${p.handCount} card${p.handCount!==1?'s':''} · ${p.score}pts</div>` +
       `<div class="opp-card-backs">${backsHtml}</div>`;
 
@@ -375,7 +393,7 @@ const UI = (() => {
         nameDiv.textContent = p.name + (isMe ? ' (you)' : '');
         const badge = document.createElement('div');
         badge.className = 'player-badge';
-        badge.textContent = p.isHost ? '👑 Host' : '✓ Ready';
+        badge.textContent = p.isHost ? 'Host' : '✓ Ready';
         row.appendChild(avEl); row.appendChild(nameDiv); row.appendChild(badge);
       } else {
         row.style.opacity = '0.3';
@@ -410,7 +428,7 @@ const UI = (() => {
     let phaseText = '';
     if (phase === 'draw')       phaseText = 'Draw a card';
     else if (phase === 'discard')    phaseText = 'Discard a card';
-    else if (phase === 'going-out')  phaseText = drawnThisTurn ? '⚡ Final discard' : '⚡ Final draw';
+    else if (phase === 'going-out')  phaseText = drawnThisTurn ? 'Final discard' : 'Final draw';
     else if (phase === 'round-end')  phaseText = 'Round over';
     else if (phase === 'game-over')  phaseText = 'Game over!';
     document.getElementById('hdr-phase').textContent = phaseText;
@@ -458,7 +476,7 @@ const UI = (() => {
       const tr = document.createElement('tr');
       if (i === 0) tr.classList.add('leading-row');
       if (p.id === localId) tr.classList.add('local-row');
-      const rank = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
+      const rank = (i+1);
       tr.innerHTML = `<td>${rank}</td><td>${escHtml(p.name)}${p.id===localId?' <em style="opacity:.6;font-size:.75em">(you)</em>':''}</td><td><strong>${p.score}</strong></td>`;
       t.appendChild(tr);
     });
@@ -511,7 +529,7 @@ const UI = (() => {
 
       const scoreEl = document.createElement('div');
       scoreEl.className = 'final-player-score' + (p.wentOut ? ' went-out' : ' scoring');
-      scoreEl.textContent = p.wentOut ? '0 pts ✅' : (p.roundScore !== undefined ? `+${p.roundScore} pts` : '');
+      scoreEl.textContent = p.wentOut ? '0 pts' : (p.roundScore !== undefined ? `+${p.roundScore} pts` : '');
       header.appendChild(scoreEl);
       block.appendChild(header);
 
@@ -548,7 +566,7 @@ const UI = (() => {
   // ── ROUND RESULTS ────────────────────────────────────────
   function renderRoundResults(results, round, isGameOver, isHost, autoAdvanceSecs) {
     document.getElementById('round-result-title').textContent =
-      isGameOver ? '🏆 Game Over!' : `Round ${round} Complete!`;
+      isGameOver ? 'Game Over!' : `Round ${round} Complete!`;
 
     const table = document.getElementById('round-scores-table');
     table.innerHTML = '';
@@ -562,7 +580,7 @@ const UI = (() => {
       const tr = document.createElement('tr');
       if (r.roundScore === 0) tr.classList.add('went-out');
       if (r.playerId === localId) tr.classList.add('local-player');
-      tr.innerHTML = `<td>${i+1}</td><td>${escHtml(r.name)}${r.playerId===localId?' (you)':''}${r.roundScore===0?' ✅':''}</td><td class="score-delta">+${r.roundScore}</td><td class="score-total">${r.totalScore}</td>`;
+      tr.innerHTML = `<td>${i+1}</td><td>${escHtml(r.name)}${r.playerId===localId?' (you)':''}${r.roundScore===0?' <span class="went-out-tag">OUT</span>':''}</td><td class="score-delta">+${r.roundScore}</td><td class="score-total">${r.totalScore}</td>`;
       t.appendChild(tr);
     });
     table.appendChild(t);
@@ -577,11 +595,13 @@ const UI = (() => {
       nextBtn.style.display = 'none';
       if (waitArea) waitArea.style.display = 'none';
     } else if (isHost) {
+      // Host always gets the button to advance the round.
       nextBtn.style.display = 'inline-block';
-      nextBtn.textContent = 'START NEXT ROUND →';
+      nextBtn.textContent = 'NEXT ROUND →';
+      nextBtn.disabled = false;
       if (waitArea) waitArea.style.display = 'none';
 
-      // Auto-advance countdown if provided
+      // Optional auto-advance countdown (button still works at any time)
       if (autoAdvanceSecs > 0) {
         const bar = document.getElementById('round-countdown-bar');
         const fill = document.getElementById('round-countdown-fill');
@@ -607,7 +627,7 @@ const UI = (() => {
     const isWinner = winnerId === localId;
 
     document.getElementById('winner-name').textContent =
-      isWinner ? '🏆 You Win!' : `🏆 ${winnerName} Wins!`;
+      isWinner ? 'You Win!' : `${winnerName} Wins!`;
     document.querySelector('.winner-sub').textContent = 'Final Standings';
 
     const finalTable = document.getElementById('final-scores-table');
@@ -621,7 +641,7 @@ const UI = (() => {
 
       const rankEl = document.createElement('div');
       rankEl.className = 'fr-rank';
-      rankEl.textContent = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.';
+      rankEl.textContent = (i+1)+'.';
       row.appendChild(rankEl);
 
       // Avatar from players array
@@ -738,7 +758,7 @@ const UI = (() => {
     const modal = document.createElement('div');
     modal.id = 'goout-error-modal';
     modal.className = 'goout-error-overlay';
-    modal.innerHTML = `<div class="goout-error-box"><div class="goout-error-icon">⚠️</div><div class="goout-error-title">Invalid Go-Out</div><div class="goout-error-msg">${escHtml(message)}</div><div class="goout-error-hint">Fix your groups and try again.</div><button class="btn btn-primary goout-error-btn" onclick="document.getElementById('goout-error-modal').remove()">OK, Fix It</button></div>`;
+    modal.innerHTML = `<div class="goout-error-box"><div class="goout-error-icon">!</div><div class="goout-error-title">Invalid Go-Out</div><div class="goout-error-msg">${escHtml(message)}</div><div class="goout-error-hint">Fix your groups and try again.</div><button class="btn btn-primary goout-error-btn" onclick="document.getElementById('goout-error-modal').remove()">OK, Fix It</button></div>`;
     document.body.appendChild(modal);
     setTimeout(() => { if (document.getElementById('goout-error-modal')) modal.remove(); }, 6000);
   }
