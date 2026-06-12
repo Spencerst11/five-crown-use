@@ -90,7 +90,7 @@ async function createRoom() {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: msg => UI.showToast(msg),
-    onError: err => { UI.showToast('⚠️ ' + err, 4000); console.error(err); },
+    onError: err => { UI.showToast(err, 4000); console.error(err); },
   });
   if (!code) { UI.showToast('Could not create the room. Please try again.', 4000); showScreen('screen-main-menu'); return; }
   document.getElementById('lobby-room-code').textContent = code;
@@ -109,7 +109,7 @@ async function joinRoom() {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: msg => UI.showToast(msg),
-    onError: err => { UI.showToast('⚠️ ' + err, 4000); console.error(err); },
+    onError: err => { UI.showToast(err, 4000); console.error(err); },
   });
 }
 
@@ -149,7 +149,7 @@ async function rejoinFromMenu() {
     onStateUpdate: handleStateUpdate,
     onLobbyUpdate: handleLobbyUpdate,
     onMessage: msg => UI.showToast(msg),
-    onError: err => { UI.showToast('⚠️ ' + err, 4000); _reconnecting = false; },
+    onError: err => { UI.showToast(err, 4000); _reconnecting = false; },
   });
   _reconnecting = false;
 }
@@ -334,7 +334,7 @@ function handleStateUpdate(publicState, result) {
   }
 
   if (action === 'draw-deck' || action === 'draw-discard') UI.animateDraw(action === 'draw-discard');
-  if (result?.reshuffled) UI.showToast('♻️ Draw pile reshuffled from discards.', 3000);
+  if (result?.reshuffled) UI.showToast('Draw pile reshuffled from discards.', 3000);
 
   _renderGameTable(publicState);
 
@@ -352,7 +352,7 @@ function handleStateUpdate(publicState, result) {
     const isMe = publicState.goingOutPlayerId === localId;
     UI.showToast(
       isMe ? 'You went out! Everyone gets one final turn — draw then discard.' :
-             `${goerName} went out! Tap 📋 to see their melds. Your final turn: draw then discard.`,
+             `${goerName} went out! Open the Final panel to see their melds. Your final turn: draw then discard.`,
       5000
     );
     // Auto-open the cards panel so everyone sees the melds
@@ -693,5 +693,5 @@ window.addEventListener('load', () => {
   _refreshAvatarPreview('join',   _joinAvatar);
   _setupAutoReconnect();
   _showRejoinBanner();
-  console.log('Five Kingdoms v8 loaded ♛');
+  console.log('Five Kingdoms v8 loaded');
 });
