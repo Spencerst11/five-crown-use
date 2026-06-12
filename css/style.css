@@ -221,11 +221,15 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 .final-meld-label{font-size:.58rem;font-family:var(--font-heading);color:#6a9a6a;text-transform:uppercase;letter-spacing:.08em;width:100%;margin-bottom:1px}
 .final-leftover-label{font-size:.58rem;font-family:var(--font-heading);color:#c05050;text-transform:uppercase;letter-spacing:.08em;width:100%;margin-bottom:1px}
 /* Mini cards inside panels */
-.card-mini{width:34px;height:48px;background:var(--card-bg);border:1px solid #ccc;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:.6rem;flex-shrink:0}
+.card-mini{width:34px;height:48px;background:var(--card-bg);border:1px solid #ccc;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:.6rem;flex-shrink:0;overflow:hidden}
+.card-mini.card-mini-img{background:transparent;border:none}
+.card-mini-art{width:100%;height:100%;object-fit:contain;display:block;border-radius:5px}
 .card-mini .cm-val{font-size:.58rem;font-weight:700;line-height:1}
 .card-mini .cm-suit{font-size:.55rem;line-height:1}
 .card-mini.joker-mini{background:linear-gradient(135deg,#fff8e8,#fff0c8)}
+.card-mini.joker-mini.card-mini-img{background:transparent}
 .card-mini.leftover{opacity:.8;box-shadow:0 0 4px rgba(239,68,68,.4);border-color:#ef4444}
+.card-mini.leftover.card-mini-img{border:1px solid #ef4444}
 
 /* ── TABLE AREA ── */
 #table-area{
@@ -481,3 +485,127 @@ button,input,select,[onclick]{touch-action:manipulation;-webkit-tap-highlight-co
 @media(max-width:359px){:root{--card-w:44px;--card-h:62px;--card-font:.9rem;--card-val:.6rem};.game-title-small{display:none};.opp-card-mini{display:none};.hand-hint{display:none};.card-joker-label{display:none};.opponent-zone{min-width:106px;max-width:130px;padding:.42rem .52rem;gap:.42rem}.opp-avatar{width:36px;height:36px;font-size:1.05rem}.opp-name{font-size:.76rem;max-width:72px}.opp-cards{font-size:.62rem}}
 @media(max-height:500px) and (orientation:landscape){:root{--card-w:46px;--card-h:64px;--card-font:.95rem;--card-val:.62rem};#table-center{gap:1.2rem};.hand-container{max-height:90px};#action-log-wrapper{bottom:2px}}
 @media(-webkit-min-device-pixel-ratio:2),(min-resolution:192dpi){.card{border-width:1px};.card-back{border-width:1.5px}}
+
+/* ════════════════════════════════════════════════════════════
+   CREAM / PARCHMENT THEME — side tabs, side panels, round results
+   Matches the top header bar + bottom hand bar (parchment + ink-blue).
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Side tabs (SCORE / FINAL pull-handles) ── */
+.side-tab{
+  background:linear-gradient(rgba(246,239,220,.95),rgba(239,230,207,.95));
+  border:2px solid rgba(29,51,84,.55);
+  box-shadow:2px 0 12px rgba(0,0,0,.3);
+}
+.side-tab:hover,.side-tab:active{
+  background:linear-gradient(rgba(252,247,233,1),rgba(246,239,220,1));
+  border-color:#1d3354;
+}
+.score-tab-left{border-left:none}
+.cards-tab-right{border-right:none}
+.tab-label-vertical{
+  font-family:'Pirata One', Georgia, serif;
+  font-weight:400;
+  color:#1d3354;
+  letter-spacing:.04em;
+}
+
+/* ── Side panels (the slide-out drawers) ── */
+.side-panel{
+  background:linear-gradient(160deg, #f7f2e3 0%, #ece3cc 78%, #e0d4b4 100%);
+  border:2px solid rgba(29,51,84,.55);
+  box-shadow:0 8px 40px rgba(0,0,0,.45);
+}
+.side-panel-header{
+  background:linear-gradient(rgba(246,239,220,.85),rgba(233,222,199,.85));
+  border-bottom:2px solid rgba(29,51,84,.4);
+  font-family:'Pirata One', Georgia, serif;
+  font-weight:400;
+  color:#1d3354;
+  letter-spacing:.05em;
+}
+.side-panel-close{color:#46597a}
+.side-panel-close:hover{color:#1d3354}
+
+/* Scoreboard (left panel) on cream */
+.score-caption{color:#46597a}
+.scoreboard-table th{
+  font-family:'IM Fell English SC', Georgia, serif;
+  color:#1d3354;
+  border-bottom:1px solid rgba(29,51,84,.25);
+}
+.scoreboard-table td{
+  color:#1d3354;
+  border-bottom:1px solid rgba(29,51,84,.12);
+}
+.scoreboard-table .leading-row td{color:#b8860b;font-weight:700}
+.scoreboard-table .local-row td{color:#2f7d4f}
+
+/* Final-cards (right panel) on cream */
+.panel-empty-msg{color:#5a6f8c}
+.final-player-block{
+  background:rgba(255,255,255,.45);
+  border:1px solid rgba(29,51,84,.22);
+}
+.final-player-name{font-family:'Pirata One', Georgia, serif;font-weight:400;color:#1d3354}
+.final-player-score.went-out{color:#2f7d4f}
+.final-player-score.scoring{color:#c2244a}
+.final-meld-label{font-family:'IM Fell English SC', Georgia, serif;color:#46531d}
+.final-leftover-label{font-family:'IM Fell English SC', Georgia, serif;color:#c2244a}
+
+/* ── Round-results (end of round / next round) screen ── */
+#screen-round-results{
+  background:radial-gradient(ellipse at 50% 34%, #f7f2e3 0%, #ece3cc 76%, #e0d4b4 100%);
+  color:#1d3354;
+}
+#screen-round-results .screen-title{
+  font-family:'Pirata One', Georgia, serif;
+  font-weight:400;
+  color:#1d3354;
+}
+.countdown-bar{background:rgba(29,51,84,.12)}
+.countdown-fill{background:linear-gradient(90deg,#c9930f,#b8860b)}
+.round-score-table th{
+  font-family:'IM Fell English SC', Georgia, serif;
+  color:#1d3354;
+  border-bottom:1px solid rgba(29,51,84,.28);
+}
+.round-score-table td{
+  color:#1d3354;
+  border-bottom:1px solid rgba(29,51,84,.12);
+}
+.round-score-table tr.went-out td{color:#2f7d4f;font-weight:700}
+.round-score-table tr.local-player td{color:#b8860b}
+.score-delta{color:#c2244a}
+.score-total{font-family:'Pirata One', Georgia, serif;font-weight:400}
+#round-result-next-info{color:#46597a}
+.waiting-host-msg{
+  color:#46597a;
+  background:rgba(255,255,255,.45);
+  border:1px solid rgba(29,51,84,.2);
+}
+/* Next Round button on cream — gold with ink outline, matches in-game buttons */
+#screen-round-results #btn-next-round{
+  background:linear-gradient(135deg,#e0b84a,#c9930f);
+  color:#1d3354;
+  border:2px solid #1d3354;
+  font-family:'Pirata One', Georgia, serif;
+  letter-spacing:.04em;
+  box-shadow:0 4px 16px rgba(29,51,84,.25);
+}
+#screen-round-results #btn-next-round:hover,
+#screen-round-results #btn-next-round:active{
+  background:linear-gradient(135deg,#ecc560,#d9a528);
+}
+
+/* "OUT" tag replacing the checkmark emoji for players who went out */
+.went-out-tag{
+  display:inline-block;font-family:'IM Fell English SC', Georgia, serif;
+  font-size:.62rem;letter-spacing:.08em;color:#fff;background:#2f7d4f;
+  padding:.05em .4em;border-radius:4px;vertical-align:middle;margin-left:.2em;
+}
+.final-player-score.went-out .went-out-tag{margin-left:.3em}
+
+/* Turn indicator dot (replaces the target emoji on the active player's name) */
+.turn-dot{color:#2f9e44;font-size:.7em;vertical-align:middle;animation:turnPulse 1.2s ease-in-out infinite}
+@keyframes turnPulse{0%,100%{opacity:1}50%{opacity:.35}}
