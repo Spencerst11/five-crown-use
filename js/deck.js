@@ -13,7 +13,7 @@ const SUITS = [
 // Ranks 3–13 (J=11, Q=12, K=13), plus Joker=0
 // Card values for scoring
 const RANK_INFO = {
-  0:  { label: 'JK', display: '🃏', score: 50  }, // Joker
+  0:  { label: 'JK', display: 'JK', score: 50  }, // Joker
   3:  { label: '3',  display: '3',  score: 3   },
   4:  { label: '4',  display: '4',  score: 4   },
   5:  { label: '5',  display: '5',  score: 5   },
