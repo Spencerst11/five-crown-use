@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Five Kingdoms — Family Card Game</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👑</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.85em' font-size='80'>&#9824;</text></svg>" />
   <link rel="stylesheet" href="css/style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English+SC&display=swap" rel="stylesheet" />
@@ -273,7 +273,7 @@
 
     <!-- rejoin banner: taps inside it must NOT start a new game -->
     <div id="rejoin-banner" class="rejoin-banner" style="display:none" onclick="event.stopPropagation()">
-      <div class="rejoin-banner-icon">🔄</div>
+      <div class="rejoin-banner-icon"></div>
       <div class="rejoin-banner-text">
         <div class="rejoin-banner-title">Game in Progress</div>
         <div id="rejoin-room-label" class="rejoin-banner-sub">Room ---- · Player</div>
@@ -320,17 +320,17 @@
       <h2 class="screen-title">Main Menu</h2>
       <div class="menu-cards">
         <div class="menu-card" onclick="showScreen('screen-create-room')">
-          <div class="menu-card-icon">🏠</div>
+          <div class="menu-card-icon"></div>
           <h3>Create Room</h3>
           <p>Start a new game and invite your family with a room code</p>
         </div>
         <div class="menu-card" onclick="showScreen('screen-join-room')">
-          <div class="menu-card-icon">🚪</div>
+          <div class="menu-card-icon"></div>
           <h3>Join Room</h3>
           <p>Enter a room code to join a game already in progress</p>
         </div>
         <div class="menu-card" onclick="showScreen('screen-rules')">
-          <div class="menu-card-icon">📖</div>
+          <div class="menu-card-icon"></div>
           <h3>How to Play</h3>
           <p>Learn the rules of Five Kingdoms</p>
         </div>
@@ -444,7 +444,7 @@
       <div class="room-code-display">
         <p class="room-label">Room Code — Share with Family!</p>
         <div class="room-code" id="lobby-room-code">----</div>
-        <button class="btn btn-small" onclick="copyRoomCode()">📋 Copy Code</button>
+        <button class="btn btn-small" onclick="copyRoomCode()">Copy Code</button>
       </div>
       <div class="lobby-players" id="lobby-players-list"></div>
       <div class="lobby-status" id="lobby-status">Waiting for players…</div>
@@ -477,7 +477,7 @@
     </div>
     <div id="score-panel" class="side-panel score-panel-left hidden">
       <div class="side-panel-header">
-        <span>📊 Scores</span>
+        <span>Scores</span>
         <button class="side-panel-close" onclick="toggleScoreboard()">✕</button>
       </div>
       <div id="scoreboard-content"></div>
@@ -489,7 +489,7 @@
     </div>
     <div id="cards-panel" class="side-panel cards-panel-right hidden">
       <div class="side-panel-header">
-        <span>🃏 Final Cards</span>
+        <span>Final Cards</span>
         <button class="side-panel-close" onclick="toggleCardsPanel()">✕</button>
       </div>
       <div id="final-cards-content">
@@ -512,9 +512,9 @@
       <div id="table-center">
         <div id="draw-pile" class="pile" onclick="drawFromDeck()">
           <div class="pile-cards">
-            <div class="card-back stack-3">👑</div>
-            <div class="card-back stack-2">👑</div>
-            <div class="card-back stack-1">👑</div>
+            <div class="card-back stack-3"></div>
+            <div class="card-back stack-2"></div>
+            <div class="card-back stack-1"></div>
           </div>
           <div class="pile-label">Draw</div>
           <div class="pile-count" id="draw-count">?</div>
@@ -584,7 +584,7 @@
       <div id="round-result-next-info"></div>
       <button class="btn btn-primary" id="btn-next-round" onclick="nextRound()" style="display:none">NEXT ROUND →</button>
       <div id="waiting-host-area" style="display:none">
-        <div class="waiting-host-msg">⏳ Waiting for the host to start the next round…</div>
+        <div class="waiting-host-msg">Waiting for the host to start the next round…</div>
       </div>
     </div>
   </div>
@@ -594,7 +594,7 @@
   ══════════════════════════════════════ -->
   <div id="screen-game-over" class="screen">
     <div class="gameover-content">
-      <div class="trophy">🏆</div>
+      <div class="trophy"></div>
       <h2 id="winner-name" class="winner-title">Player Wins!</h2>
       <p class="winner-sub">Final Standings</p>
       <div id="final-scores-table"></div>
@@ -609,14 +609,14 @@
     <div class="rules-content">
       <h2 class="screen-title">How to Play Five Kingdoms</h2>
       <div class="rules-body">
-        <div class="rule-section"><h3>🎯 Objective</h3><p>Have the <strong>lowest score</strong> after all 11 rounds. Form your entire hand into <strong>books</strong> and/or <strong>runs</strong> to go out and score zero!</p></div>
-        <div class="rule-section"><h3>🃏 The Deck</h3><p>Two 58-card decks combined. Five suits: ★ Stars, ♥ Hearts, ♣ Clubs, ♠ Spades, ♦ Diamonds. Cards 3–10, Jack, Queen, King, plus 3 Jokers per deck.</p></div>
-        <div class="rule-section"><h3>🔄 Rounds &amp; Wilds</h3><p>11 rounds. Round 1 = 3 cards each. One more card each round. The wild card rotates (Round 1: 3s wild … Round 11: Kings wild). Jokers always wild.</p></div>
-        <div class="rule-section"><h3>📚 Books &amp; Runs</h3><p><strong>Book:</strong> 3+ same rank (any suit). <strong>Run:</strong> 3+ consecutive same suit. Wilds substitute for any card.</p></div>
-        <div class="rule-section"><h3>▶️ Your Turn</h3><p>1. Draw from the deck or take the top discard.<br>2. Rearrange your hand (drag).<br>3. Tap a card to select it, then tap the Discard pile to end your turn.</p></div>
-        <div class="rule-section"><h3>🚪 Going Out</h3><p>Tap <strong>GO OUT</strong>, assign all cards into meld groups (books/runs) and mark one card to discard. Submit to go out with a score of 0. Everyone else gets one final draw+discard turn.</p></div>
-        <div class="rule-section"><h3>📋 Final Cards Panel</h3><p>On your final turn, draw a card then discard one. Your remaining cards appear in the <strong>right-side Final panel</strong>. Place them in sets to reduce your score — leftover unmelded cards count as points.</p></div>
-        <div class="rule-section"><h3>💯 Scoring</h3><p>Unmelded cards count against you: number cards = face value, J=11, Q=12, K=13, Jokers=50, Round wilds=20. Lowest total after 11 rounds wins!</p></div>
+        <div class="rule-section"><h3>Objective</h3><p>Have the <strong>lowest score</strong> after all 11 rounds. Form your entire hand into <strong>books</strong> and/or <strong>runs</strong> to go out and score zero!</p></div>
+        <div class="rule-section"><h3>The Deck</h3><p>Two 58-card decks combined. Five suits: ★ Stars, ♥ Hearts, ♣ Clubs, ♠ Spades, ♦ Diamonds. Cards 3–10, Jack, Queen, King, plus 3 Jokers per deck.</p></div>
+        <div class="rule-section"><h3>Rounds &amp; Wilds</h3><p>11 rounds. Round 1 = 3 cards each. One more card each round. The wild card rotates (Round 1: 3s wild … Round 11: Kings wild). Jokers always wild.</p></div>
+        <div class="rule-section"><h3>Books &amp; Runs</h3><p><strong>Book:</strong> 3+ same rank (any suit). <strong>Run:</strong> 3+ consecutive same suit. Wilds substitute for any card.</p></div>
+        <div class="rule-section"><h3>Your Turn</h3><p>1. Draw from the deck or take the top discard.<br>2. Rearrange your hand (drag).<br>3. Tap a card to select it, then tap the Discard pile to end your turn.</p></div>
+        <div class="rule-section"><h3>Going Out</h3><p>Tap <strong>GO OUT</strong>, assign all cards into meld groups (books/runs) and mark one card to discard. Submit to go out with a score of 0. Everyone else gets one final draw+discard turn.</p></div>
+        <div class="rule-section"><h3>Final Cards Panel</h3><p>On your final turn, draw a card then discard one. Your remaining cards appear in the <strong>right-side Final panel</strong>. Place them in sets to reduce your score — leftover unmelded cards count as points.</p></div>
+        <div class="rule-section"><h3>Scoring</h3><p>Unmelded cards count against you: number cards = face value, J=11, Q=12, K=13, Jokers=50, Round wilds=20. Lowest total after 11 rounds wins!</p></div>
       </div>
       <button class="btn btn-primary" onclick="showScreen('screen-main-menu')">← Back to Menu</button>
     </div>
